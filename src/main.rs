@@ -38,6 +38,9 @@ enum ProfileCommands {
     Show {
         /// Profile name
         profile: String,
+        /// Show merged result with common config
+        #[arg(short, long)]
+        merged: bool,
     },
     /// Show current configuration file content
     Config,
@@ -97,7 +100,9 @@ fn handle_profile_command(manager: &ProfileManager, command: ProfileCommands) ->
     match command {
         ProfileCommands::List => commands::list::execute(manager),
         ProfileCommands::Current => commands::current::execute(manager),
-        ProfileCommands::Show { profile } => commands::show::execute(manager, &profile),
+        ProfileCommands::Show { profile, merged } => {
+            commands::show::execute(manager, &profile, merged)
+        }
         ProfileCommands::Config => commands::config::execute(manager),
         ProfileCommands::Add {
             profile,

@@ -1,8 +1,11 @@
 use anyhow::{anyhow, Context, Result};
+use serde_json::Value;
 use std::path::PathBuf;
 
 use crate::profile::storage;
 use crate::provider::Provider;
+
+const COMMON_PROFILE_NAME: &str = "common";
 
 pub enum ProfileSource {
     Empty,
@@ -35,6 +38,22 @@ impl<'a> ProfileManager<'a> {
         })
     }
 
+    pub fn is_common_profile(name: &str) -> bool {
+        name == COMMON_PROFILE_NAME
+    }
+
+    pub fn get_common_config(&self) -> Result<Option<Value>> {
+        let path = self.profile_path(COMMON_PROFILE_NAME);
+        if !path.exists() {
+            return Ok(None);
+        }
+        storage::read_json(&path).map(Some)
+    }
+
+    pub fn has_common_config(&self) -> bool {
+        self.profile_path(COMMON_PROFILE_NAME).exists()
+    }
+
     pub fn list_profiles(&self) -> Result<Vec<String>> {
         let mut profiles = Vec::new();
 
@@ -56,6 +75,7 @@ impl<'a> ProfileManager<'a> {
             }
         }
 
+        profiles.retain(|p| p != COMMON_PROFILE_NAME);
         profiles.sort();
         Ok(profiles)
     }
@@ -121,10 +141,25 @@ impl<'a> ProfileManager<'a> {
     }
 
     pub fn use_profile(&self, name: &str) -> Result<()> {
+        if Self::is_common_profile(name) {
+            return Err(anyhow!(
+                "'common' is a shared base config, not a switchable profile. \
+                 Use 'aip {} edit common' to modify it.",
+                self.provider.name()
+            ));
+        }
+
         let profile_content = self.get_profile(name)?;
 
+        // Merge with common config if it exists
+        let final_content = if let Some(common) = self.get_common_config()? {
+            storage::deep_merge(&common, &profile_content)
+        } else {
+            profile_content
+        };
+
         let config_path = self.provider.config_path();
-        storage::write_json(&config_path, &profile_content)?;
+        storage::write_json(&config_path, &final_content)?;
 
         storage::update_current_profile(&self.state_file, self.provider.name(), Some(name))?;
 

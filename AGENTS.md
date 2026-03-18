@@ -14,7 +14,7 @@ This is a Rust CLI tool named `aip` (AI Providers) for managing AI tool configur
 - Centralized profile storage in `~/.ai-providers/<provider>/`
 
 ### Architecture
-See PLAN.md for detailed architecture design, design decisions, and technical specifications.
+See [docs/architecture.md](docs/architecture.md) for detailed architecture, implementation details, and extension guide.
 
 ## Development Commands
 
@@ -57,8 +57,15 @@ cargo run -- claude delete <profile_name>
 # Edit a profile with $EDITOR
 cargo run -- claude edit <profile_name>
 
-# Switch to a profile
+# Switch to a profile (merges with common config if it exists)
 cargo run -- claude use <profile_name>
+
+# Show profile merged with common config
+cargo run -- claude show <profile_name> --merged
+
+# Create a common (shared base) config
+cargo run -- claude add common --empty
+cargo run -- claude edit common
 ```
 
 ### Testing
@@ -82,29 +89,62 @@ cargo clean          # Remove build artifacts
 cargo doc --open     # Generate and open documentation
 ```
 
-## Project Structure
+## File Index
 
-```
-src/
-├── main.rs              # Entry point, CLI definition (nested subcommands)
-├── provider/            # Provider trait abstraction
-│   ├── mod.rs           # Provider trait definition
-│   └── claude.rs        # ClaudeProvider implementation
-├── profile/             # Profile management core
-│   ├── mod.rs
-│   ├── manager.rs       # ProfileManager (generic, takes a Provider)
-│   └── storage.rs       # File I/O (atomic writes, state management)
-└── commands/            # Subcommand implementations
-    ├── mod.rs
-    ├── list.rs
-    ├── current.rs
-    ├── show.rs
-    ├── config.rs
-    ├── add.rs
-    ├── delete.rs
-    ├── edit.rs
-    └── use_cmd.rs
-```
+> **IMPORTANT**: Any file addition, removal, or rename MUST update this index.
+
+### Root Files
+
+| File | Purpose |
+|------|---------|
+| `Cargo.toml` | Project manifest: name=ai-providers, bin=aip, edition=2021, dependencies (clap, serde, serde_json, anyhow, colored) |
+| `Cargo.lock` | Dependency lock file |
+| `README.md` | User-facing documentation: installation, usage examples, configuration |
+| `CLAUDE.md` | This file. Claude Code guidance, file index, development commands |
+| `AGENTS.md` | Development guidance (symlink target for CLAUDE.md context) |
+| `install.sh` | Build + installation helper script (cargo build --release, 3 install options) |
+| `.gitignore` | Git ignore rules |
+
+### Documentation (`docs/`)
+
+| File | Purpose |
+|------|---------|
+| `docs/architecture.md` | Architecture and implementation details (Chinese): layered architecture, Provider trait, ProfileManager API, storage internals, security, extension guide |
+
+### Source: Entry Point (`src/`)
+
+| File | Purpose |
+|------|---------|
+| `src/main.rs` | CLI definition (clap derive): `Cli` → `ProviderCommand` → `ProfileCommands` enums, command dispatch via `handle_profile_command()`, top-level error handling |
+
+### Source: Provider Layer (`src/provider/`)
+
+| File | Purpose |
+|------|---------|
+| `src/provider/mod.rs` | `Provider` trait: `name()`, `config_path()`, `validate_config()` (default impl accepts any JSON) |
+| `src/provider/claude.rs` | `ClaudeProvider` struct: name="claude", config_path=`~/.claude/settings.json` |
+
+### Source: Profile Layer (`src/profile/`)
+
+| File | Purpose |
+|------|---------|
+| `src/profile/mod.rs` | Module exports: `manager`, `storage` |
+| `src/profile/manager.rs` | `ProfileManager<'a>` (holds `&dyn Provider`): list/get/add/delete/use profiles, name validation, `ProfileSource` enum (Empty, FromCurrent, FromProfile) |
+| `src/profile/storage.rs` | File I/O functions: `read_json`, `write_json` (atomic: temp+rename, Unix 0600 perms), `remove_file`, `read_current_profile`, `update_current_profile` |
+
+### Source: Commands (`src/commands/`)
+
+| File | Command | Purpose |
+|------|---------|---------|
+| `src/commands/mod.rs` | — | Module exports for all commands |
+| `src/commands/list.rs` | `list` / `ls` | List all profiles, highlight current (green + `*`) |
+| `src/commands/current.rs` | `current` | Show current active profile name |
+| `src/commands/show.rs` | `show <profile>` | Display profile JSON content |
+| `src/commands/config.rs` | `config` | Display active `settings.json` content |
+| `src/commands/add.rs` | `add <profile> [--from] [--empty]` | Create new profile from current config / empty / existing profile |
+| `src/commands/delete.rs` | `delete <profile> [-f]` | Delete profile with confirmation, warn if current |
+| `src/commands/edit.rs` | `edit <profile>` | Open in `$EDITOR`/`$VISUAL`/vim/vi/nano, JSON validation loop |
+| `src/commands/use_cmd.rs` | `use <profile>` | Overwrite `settings.json` with profile, update state |
 
 ## Key Design Decisions
 
@@ -116,3 +156,16 @@ src/
 - Editing: `edit` only modifies the profile file, does not sync to settings.json
 - Deleting current profile: allowed with warning, clears state after deletion
 - Architecture: `Provider` trait with `ClaudeProvider` impl; add new providers by implementing trait
+
+## Documentation
+
+- **README.md**: User-facing documentation (installation, usage, examples)
+- **docs/architecture.md**: Architecture and implementation details (Chinese, code-level documentation)
+
+### Documentation Maintenance
+
+Any code changes must be reflected in the relevant documentation:
+- **File added/removed/renamed → update the File Index above**
+- New commands or CLI changes → update README.md and docs/architecture.md
+- Architecture or module changes → update docs/architecture.md
+- New providers → update all three docs and File Index

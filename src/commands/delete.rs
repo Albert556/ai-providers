@@ -10,6 +10,13 @@ pub fn execute(manager: &ProfileManager, profile: &str, force: bool) -> Result<(
         return Ok(());
     }
 
+    if ProfileManager::is_common_profile(profile) {
+        println!(
+            "{}",
+            "Warning: Deleting common config will affect all profile switches".yellow()
+        );
+    }
+
     let current = manager.get_current_profile()?;
     if current.as_deref() == Some(profile) {
         println!(

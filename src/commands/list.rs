@@ -20,6 +20,10 @@ pub fn execute(manager: &ProfileManager) -> Result<()> {
         return Ok(());
     }
 
+    if manager.has_common_config() {
+        println!("  {}  {}", "[common]".cyan(), "base config".dimmed());
+    }
+
     println!("Available profiles:");
     for profile in profiles {
         if current.as_deref() == Some(&profile) {

@@ -42,6 +42,27 @@ pub fn write_json(path: &Path, value: &Value) -> Result<()> {
     Ok(())
 }
 
+/// Deep merge two JSON values. `override_val` takes precedence.
+/// For objects: recursively merge, override's keys win on conflict.
+/// For non-objects (including arrays): override_val replaces base entirely.
+pub fn deep_merge(base: &Value, override_val: &Value) -> Value {
+    match (base, override_val) {
+        (Value::Object(base_map), Value::Object(override_map)) => {
+            let mut merged = base_map.clone();
+            for (key, override_v) in override_map {
+                let merged_v = if let Some(base_v) = base_map.get(key) {
+                    deep_merge(base_v, override_v)
+                } else {
+                    override_v.clone()
+                };
+                merged.insert(key.clone(), merged_v);
+            }
+            Value::Object(merged)
+        }
+        _ => override_val.clone(),
+    }
+}
+
 pub fn remove_file(path: &Path) -> Result<()> {
     fs::remove_file(path)
         .with_context(|| format!("Failed to remove file: {}", path.display()))
