@@ -226,9 +226,9 @@ Releases are automated through Gitea Actions and are driven by `Cargo.toml`.
 
 Current release artifacts target:
 
-- Linux `x86_64-unknown-linux-gnu`
-- macOS native runner architecture
-- Windows `x86_64-pc-windows-gnu` via Linux cross-compilation
+- Linux `x86_64-unknown-linux-gnu` on the `debian-stable-slim` runner label
+- macOS native runner architecture on the `macos` runner label
+- Windows `x86_64-pc-windows-gnu` via Linux cross-compilation on the `debian-stable-slim` runner label
 
 ## Architecture
 

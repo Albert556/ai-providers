@@ -636,9 +636,9 @@ Gitea Actions 工作流位于 `.gitea/workflows/release.yml`，仅监听 `main` 
 
 | 平台 | 构建方式 | 目标 |
 |------|---------|------|
-| Linux | 原生 runner | `x86_64-unknown-linux-gnu` |
-| macOS | 原生 runner，使用 runner 自身架构 | `rustc -vV` 解析出的 host triple |
-| Windows | Linux 上交叉编译 | `x86_64-pc-windows-gnu` |
+| Linux | `debian-stable-slim` runner | `x86_64-unknown-linux-gnu` |
+| macOS | `macos` runner，使用 runner 自身架构 | `rustc -vV` 解析出的 host triple |
+| Windows | `debian-stable-slim` runner 上交叉编译 | `x86_64-pc-windows-gnu` |
 
 产物重命名由 `scripts/ci/package_binary.sh` 负责，统一输出为 `aip-vX.Y.Z-<target>`，Windows 文件追加 `.exe`。
 
