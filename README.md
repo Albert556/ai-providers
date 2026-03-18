@@ -95,7 +95,7 @@ aip claude delete work -f
 aip claude edit work
 ```
 
-Uses `$EDITOR` environment variable (falls back to vim, vi, nano).
+Uses `$EDITOR` or `$VISUAL` environment variable (falls back to vim, vi, nano).
 
 **Note**: Editing a profile does not automatically apply changes. Use `aip claude use <profile>` to apply.
 
@@ -197,10 +197,10 @@ aip claude use production
 
 ## Architecture
 
-See [PLAN.md](PLAN.md) for detailed architecture documentation including:
+See [docs/architecture.md](docs/architecture.md) for detailed architecture documentation including:
 - Provider trait design
 - Design decision records
-- Implementation phases
+- Implementation details and extension guide
 
 ## Development
 
