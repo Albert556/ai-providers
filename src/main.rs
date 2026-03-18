@@ -3,20 +3,32 @@ use clap::{Parser, Subcommand};
 use colored::*;
 
 mod commands;
-mod config;
 mod profile;
+mod provider;
+
+use profile::manager::ProfileManager;
+use provider::claude::ClaudeProvider;
 
 #[derive(Parser)]
 #[command(name = "aip")]
-#[command(about = "AI Providers - Manage Claude Code configuration profiles")]
+#[command(about = "AI Providers - Manage AI tool configuration profiles")]
 #[command(version)]
 struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    command: ProviderCommand,
 }
 
 #[derive(Subcommand)]
-enum Commands {
+enum ProviderCommand {
+    /// Manage Claude Code profiles
+    Claude {
+        #[command(subcommand)]
+        command: ProfileCommands,
+    },
+}
+
+#[derive(Subcommand)]
+enum ProfileCommands {
     /// List all profiles
     #[command(alias = "ls")]
     List,
@@ -27,7 +39,7 @@ enum Commands {
         /// Profile name
         profile: String,
     },
-    /// Show current Claude Code configuration
+    /// Show current configuration file content
     Config,
     /// Add a new profile
     Add {
@@ -48,7 +60,7 @@ enum Commands {
         #[arg(short, long)]
         force: bool,
     },
-    /// Edit a profile
+    /// Edit a profile with $EDITOR
     Edit {
         /// Profile name
         profile: String,
@@ -71,16 +83,31 @@ fn run() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::List => commands::list::execute()?,
-        Commands::Current => commands::current::execute()?,
-        Commands::Show { profile } => commands::show::execute(&profile)?,
-        Commands::Config => commands::config::execute()?,
-        Commands::Add { profile, from, empty } => commands::add::execute(&profile, from, empty)?,
-        Commands::Delete { profile, force } => commands::delete::execute(&profile, force)?,
-        Commands::Edit { profile } => commands::edit::execute(&profile)?,
-        Commands::Use { profile } => commands::use_cmd::execute(&profile)?,
+        ProviderCommand::Claude { command } => {
+            let provider = ClaudeProvider;
+            let manager = ProfileManager::new(&provider)?;
+            handle_profile_command(&manager, command)?;
+        }
     }
 
     Ok(())
 }
 
+fn handle_profile_command(manager: &ProfileManager, command: ProfileCommands) -> Result<()> {
+    match command {
+        ProfileCommands::List => commands::list::execute(manager),
+        ProfileCommands::Current => commands::current::execute(manager),
+        ProfileCommands::Show { profile } => commands::show::execute(manager, &profile),
+        ProfileCommands::Config => commands::config::execute(manager),
+        ProfileCommands::Add {
+            profile,
+            from,
+            empty,
+        } => commands::add::execute(manager, &profile, from, empty),
+        ProfileCommands::Delete { profile, force } => {
+            commands::delete::execute(manager, &profile, force)
+        }
+        ProfileCommands::Edit { profile } => commands::edit::execute(manager, &profile),
+        ProfileCommands::Use { profile } => commands::use_cmd::execute(manager, &profile),
+    }
+}

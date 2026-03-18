@@ -1,18 +1,20 @@
-# AGENTS.md
+# CLAUDE.md
 
-This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working with code in this repository.
 
 ## Project Overview
 
-This is a Rust CLI tool named `aip` (AI Providers) for managing Codex configuration profiles. It enables quick switching between different Codex configurations by providing commands to view, add, delete, edit, and switch profiles.
+This is a Rust CLI tool named `aip` (AI Providers) for managing AI tool configuration profiles. It supports multiple providers (Claude Code, Codex, etc.) via a `Provider` trait abstraction. Commands are organized by provider: `aip claude <command>`.
+
+**Current version (v1) implements Claude Code support only. Architecture supports multi-provider expansion.**
 
 ### Purpose
-- Manage multiple Codex configuration profiles (~/.Codex/settings.json)
+- Manage multiple configuration profiles for AI coding tools
 - Quick profile switching for different development contexts (work, personal, test, etc.)
-- Centralized configuration management stored in ~/.ai-providers/
+- Centralized profile storage in `~/.ai-providers/<provider>/`
 
 ### Architecture
-See PLAN.md for detailed architecture design, implementation steps, and technical specifications.
+See PLAN.md for detailed architecture design, design decisions, and technical specifications.
 
 ## Development Commands
 
@@ -31,17 +33,32 @@ cargo run -- <args>  # Pass arguments to the CLI
 
 ### CLI Usage Examples
 ```bash
-# View current configuration
-cargo run -- list
+# List all Claude Code profiles
+cargo run -- claude list
 
-# Add a new profile
-cargo run -- add <profile_name>
+# Show current active profile
+cargo run -- claude current
+
+# Show current Claude Code settings.json content
+cargo run -- claude config
+
+# Show a specific profile
+cargo run -- claude show <profile_name>
+
+# Add a new profile (from current config)
+cargo run -- claude add <profile_name>
+
+# Add empty profile
+cargo run -- claude add <profile_name> --empty
 
 # Delete a profile
-cargo run -- delete <profile_name>
+cargo run -- claude delete <profile_name>
+
+# Edit a profile with $EDITOR
+cargo run -- claude edit <profile_name>
 
 # Switch to a profile
-cargo run -- set <profile_name>
+cargo run -- claude use <profile_name>
 ```
 
 ### Testing
@@ -67,20 +84,35 @@ cargo doc --open     # Generate and open documentation
 
 ## Project Structure
 
-- `src/main.rs` - Application entry point and CLI argument parsing
-- `Cargo.toml` - Project manifest and dependencies
-- `target/` - Build artifacts (gitignored)
+```
+src/
+├── main.rs              # Entry point, CLI definition (nested subcommands)
+├── provider/            # Provider trait abstraction
+│   ├── mod.rs           # Provider trait definition
+│   └── claude.rs        # ClaudeProvider implementation
+├── profile/             # Profile management core
+│   ├── mod.rs
+│   ├── manager.rs       # ProfileManager (generic, takes a Provider)
+│   └── storage.rs       # File I/O (atomic writes, state management)
+└── commands/            # Subcommand implementations
+    ├── mod.rs
+    ├── list.rs
+    ├── current.rs
+    ├── show.rs
+    ├── config.rs
+    ├── add.rs
+    ├── delete.rs
+    ├── edit.rs
+    └── use_cmd.rs
+```
 
-## Architecture Notes
+## Key Design Decisions
 
-### Configuration Management
-- The tool manages configuration files for Codex and Codex
-- Profiles allow switching between different API keys, endpoints, or settings
-- Configuration files are typically stored in user home directory or XDG config paths
-
-### Expected CLI Commands
-- `list` / `ls` - Display all available profiles
-- `add <profile>` - Create a new profile configuration
-- `delete <profile>` / `rm <profile>` - Remove a profile
-- `set <profile>` / `use <profile>` - Activate a specific profile
-- `show <profile>` - Display profile details
+- CLI structure: `aip <provider> <command>` (e.g., `aip claude list`)
+- Storage: `~/.ai-providers/<provider>/<profile>.json` per-provider directories
+- State: each provider tracks its current profile independently in `~/.ai-providers/state.json`
+- Profile format: pure config (profile.json content = settings.json content, no metadata)
+- Switching: `use` overwrites settings.json without auto-saving current config
+- Editing: `edit` only modifies the profile file, does not sync to settings.json
+- Deleting current profile: allowed with warning, clears state after deletion
+- Architecture: `Provider` trait with `ClaudeProvider` impl; add new providers by implementing trait

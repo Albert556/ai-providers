@@ -2,8 +2,7 @@ use anyhow::Result;
 
 use crate::profile::manager::ProfileManager;
 
-pub fn execute(profile: &str) -> Result<()> {
-    let manager = ProfileManager::new()?;
+pub fn execute(manager: &ProfileManager, profile: &str) -> Result<()> {
     let content = manager.get_profile(profile)?;
 
     println!("Profile: {}", profile);

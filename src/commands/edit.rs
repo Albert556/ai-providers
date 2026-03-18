@@ -5,11 +5,9 @@ use std::process::Command;
 
 use crate::profile::manager::ProfileManager;
 
-pub fn execute(profile: &str) -> Result<()> {
-    let manager = ProfileManager::new()?;
-
+pub fn execute(manager: &ProfileManager, profile: &str) -> Result<()> {
     if !manager.profile_exists(profile) {
-        println!("{}", format!("✗ Profile '{}' not found", profile).red());
+        println!("{}", format!("Profile '{}' not found", profile).red());
         return Ok(());
     }
 
@@ -25,8 +23,7 @@ pub fn execute(profile: &str) -> Result<()> {
             }
         });
 
-    let paths = crate::config::paths::Paths::new()?;
-    let profile_path = paths.profile_path(profile);
+    let profile_path = manager.profile_path(profile);
 
     loop {
         let status = Command::new(&editor)
@@ -40,11 +37,11 @@ pub fn execute(profile: &str) -> Result<()> {
 
         match manager.get_profile(profile) {
             Ok(_) => {
-                println!("{}", "✓ Profile saved successfully".green());
+                println!("{}", "Profile saved successfully".green());
                 break;
             }
             Err(e) => {
-                println!("{}", format!("✗ Invalid JSON: {}", e).red());
+                println!("{}", format!("Invalid JSON: {}", e).red());
                 print!("Do you want to edit again? (y/n): ");
                 io::stdout().flush()?;
 
@@ -60,4 +57,3 @@ pub fn execute(profile: &str) -> Result<()> {
 
     Ok(())
 }
-

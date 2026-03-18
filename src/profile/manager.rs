@@ -1,7 +1,8 @@
 use anyhow::{anyhow, Context, Result};
+use std::path::PathBuf;
 
-use crate::config::paths::Paths;
-use crate::profile::storage::{read_json_file, read_state, write_json_file, write_state, State};
+use crate::profile::storage;
+use crate::provider::Provider;
 
 pub enum ProfileSource {
     Empty,
@@ -9,25 +10,39 @@ pub enum ProfileSource {
     FromProfile(String),
 }
 
-pub struct ProfileManager {
-    paths: Paths,
+pub struct ProfileManager<'a> {
+    provider: &'a dyn Provider,
+    profiles_dir: PathBuf,
+    state_file: PathBuf,
 }
 
-impl ProfileManager {
-    pub fn new() -> Result<Self> {
-        let paths = Paths::new()?;
-        paths.ensure_dirs()?;
-        Ok(Self { paths })
+impl<'a> ProfileManager<'a> {
+    pub fn new(provider: &'a dyn Provider) -> Result<Self> {
+        let home = std::env::var("HOME").context("Failed to get HOME environment variable")?;
+        let base_dir = PathBuf::from(home).join(".ai-providers");
+        let profiles_dir = base_dir.join(provider.name());
+        let state_file = base_dir.join("state.json");
+
+        if !profiles_dir.exists() {
+            std::fs::create_dir_all(&profiles_dir)
+                .with_context(|| format!("Failed to create directory: {}", profiles_dir.display()))?;
+        }
+
+        Ok(Self {
+            provider,
+            profiles_dir,
+            state_file,
+        })
     }
 
     pub fn list_profiles(&self) -> Result<Vec<String>> {
         let mut profiles = Vec::new();
 
-        if !self.paths.profiles_dir.exists() {
+        if !self.profiles_dir.exists() {
             return Ok(profiles);
         }
 
-        let entries = std::fs::read_dir(&self.paths.profiles_dir)
+        let entries = std::fs::read_dir(&self.profiles_dir)
             .context("Failed to read profiles directory")?;
 
         for entry in entries {
@@ -36,9 +51,7 @@ impl ProfileManager {
 
             if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("json") {
                 if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                    if stem != "state" {
-                        profiles.push(stem.to_string());
-                    }
+                    profiles.push(stem.to_string());
                 }
             }
         }
@@ -48,23 +61,26 @@ impl ProfileManager {
     }
 
     pub fn get_current_profile(&self) -> Result<Option<String>> {
-        let state = read_state(&self.paths.state_file)?;
-        Ok(state.current_profile)
+        storage::read_current_profile(&self.state_file, self.provider.name())
     }
 
     pub fn get_profile(&self, name: &str) -> Result<serde_json::Value> {
-        let path = self.paths.profile_path(name);
+        let path = self.profile_path(name);
         if !path.exists() {
             return Err(anyhow!("Profile '{}' not found", name));
         }
-        read_json_file(&path)
+        storage::read_json(&path)
     }
 
-    pub fn get_claude_config(&self) -> Result<serde_json::Value> {
-        if !self.paths.claude_config.exists() {
-            return Err(anyhow!("Claude Code configuration not found at {}", self.paths.claude_config.display()));
+    pub fn get_active_config(&self) -> Result<serde_json::Value> {
+        let config_path = self.provider.config_path();
+        if !config_path.exists() {
+            return Err(anyhow!(
+                "Configuration not found at {}",
+                config_path.display()
+            ));
         }
-        read_json_file(&self.paths.claude_config)
+        storage::read_json(&config_path)
     }
 
     pub fn add_profile(&self, name: &str, source: ProfileSource) -> Result<()> {
@@ -76,16 +92,14 @@ impl ProfileManager {
 
         let content = match source {
             ProfileSource::Empty => serde_json::json!({}),
-            ProfileSource::FromCurrent => {
-                self.get_claude_config().unwrap_or_else(|_| serde_json::json!({}))
-            }
-            ProfileSource::FromProfile(ref profile_name) => {
-                self.get_profile(profile_name)?
-            }
+            ProfileSource::FromCurrent => self
+                .get_active_config()
+                .unwrap_or_else(|_| serde_json::json!({})),
+            ProfileSource::FromProfile(ref source_name) => self.get_profile(source_name)?,
         };
 
-        let path = self.paths.profile_path(name);
-        write_json_file(&path, &content)?;
+        let path = self.profile_path(name);
+        storage::write_json(&path, &content)?;
 
         Ok(())
     }
@@ -95,15 +109,12 @@ impl ProfileManager {
             return Err(anyhow!("Profile '{}' not found", name));
         }
 
-        let path = self.paths.profile_path(name);
-        std::fs::remove_file(&path)
-            .with_context(|| format!("Failed to delete profile '{}'", name))?;
+        let path = self.profile_path(name);
+        storage::remove_file(&path)?;
 
         let current = self.get_current_profile()?;
         if current.as_deref() == Some(name) {
-            let mut state = State::new();
-            state.current_profile = None;
-            write_state(&self.paths.state_file, &state)?;
+            storage::update_current_profile(&self.state_file, self.provider.name(), None)?;
         }
 
         Ok(())
@@ -112,18 +123,20 @@ impl ProfileManager {
     pub fn use_profile(&self, name: &str) -> Result<()> {
         let profile_content = self.get_profile(name)?;
 
-        write_json_file(&self.paths.claude_config, &profile_content)?;
+        let config_path = self.provider.config_path();
+        storage::write_json(&config_path, &profile_content)?;
 
-        let mut state = State::new();
-        state.current_profile = Some(name.to_string());
-        state.last_updated = Some(chrono::Utc::now().to_rfc3339());
-        write_state(&self.paths.state_file, &state)?;
+        storage::update_current_profile(&self.state_file, self.provider.name(), Some(name))?;
 
         Ok(())
     }
 
     pub fn profile_exists(&self, name: &str) -> bool {
-        self.paths.profile_path(name).exists()
+        self.profile_path(name).exists()
+    }
+
+    pub fn profile_path(&self, name: &str) -> PathBuf {
+        self.profiles_dir.join(format!("{}.json", name))
     }
 
     pub fn validate_profile_name(&self, name: &str) -> Result<()> {
@@ -139,6 +152,14 @@ impl ProfileManager {
             return Err(anyhow!("Profile name cannot start with a dot"));
         }
 
+        if name == "state" {
+            return Err(anyhow!("'state' is a reserved name"));
+        }
+
         Ok(())
+    }
+
+    pub fn provider_name(&self) -> &str {
+        self.provider.name()
     }
 }

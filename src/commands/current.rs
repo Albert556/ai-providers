@@ -3,8 +3,7 @@ use colored::*;
 
 use crate::profile::manager::ProfileManager;
 
-pub fn execute() -> Result<()> {
-    let manager = ProfileManager::new()?;
+pub fn execute(manager: &ProfileManager) -> Result<()> {
     let current = manager.get_current_profile()?;
 
     match current {

@@ -1,15 +1,8 @@
 # AI Providers (aip)
 
-A Rust CLI tool for managing Claude Code configuration profiles. Quickly switch between different Claude Code configurations for various development contexts (work, personal, test, etc.).
+A Rust CLI tool for managing AI tool configuration profiles. Quickly switch between different configurations for various development contexts (work, personal, test, etc.).
 
-## Features
-
-- 📦 Manage multiple Claude Code configuration profiles
-- 🔄 Quick profile switching
-- 📝 Edit profiles with your favorite editor
-- 🎨 Colorful terminal output
-- 🔒 Secure file permissions (0600 on Unix)
-- ✅ Profile validation and error handling
+Currently supports **Claude Code**. Architecture designed for multi-provider expansion (Codex, Cursor, etc.).
 
 ## Installation
 
@@ -26,111 +19,129 @@ The binary will be available at `target/release/aip`.
 ### Add to PATH
 
 ```bash
-# Copy to a directory in your PATH
 sudo cp target/release/aip /usr/local/bin/
-
-# Or create a symlink
+# or
 sudo ln -s $(pwd)/target/release/aip /usr/local/bin/aip
 ```
 
 ## Usage
 
-### List all profiles
+Commands are organized by provider: `aip <provider> <command>`.
+
+### Claude Code
+
+#### List all profiles
 
 ```bash
-aip list
+aip claude list
 # or
-aip ls
+aip claude ls
 ```
 
 Output:
 ```
-Available profiles:
+Claude Code profiles:
   * work      (current)
     personal
     test
 ```
 
-### Show current active profile
+#### Show current active profile
 
 ```bash
-aip current
+aip claude current
 ```
 
-### Show profile details
+#### Show profile details
 
 ```bash
-aip show <profile>
+aip claude show <profile>
 ```
 
-### Show current Claude Code configuration
+#### Show current Claude Code configuration
 
 ```bash
-aip config
+aip claude config
 ```
 
-### Add a new profile
+Shows the actual content of `~/.claude/settings.json`.
+
+#### Add a new profile
 
 ```bash
 # Create from current Claude Code config (default)
-aip add work
+aip claude add work
 
 # Create empty profile
-aip add work --empty
+aip claude add work --empty
 
 # Copy from existing profile
-aip add work --from personal
+aip claude add work --from personal
 ```
 
-### Delete a profile
+#### Delete a profile
 
 ```bash
 # With confirmation
-aip delete work
+aip claude delete work
 
 # Force delete without confirmation
-aip delete work -f
+aip claude delete work -f
 ```
 
-### Edit a profile
+#### Edit a profile
 
 ```bash
-aip edit work
+aip claude edit work
 ```
 
-Uses `$EDITOR` environment variable (falls back to vim → vi → nano).
+Uses `$EDITOR` environment variable (falls back to vim, vi, nano).
 
-### Switch to a profile
+**Note**: Editing a profile does not automatically apply changes. Use `aip claude use <profile>` to apply.
+
+#### Switch to a profile
 
 ```bash
-aip use work
+aip claude use work
 ```
+
+**Note**: This overwrites `~/.claude/settings.json` with the profile content. Current settings are not auto-saved. Use `aip claude add` to save your current configuration first if needed.
 
 ## Configuration
 
 ### Profile Storage
 
-Profiles are stored in `~/.ai-providers/`:
+Profiles are organized by provider:
 
 ```
 ~/.ai-providers/
-├── state.json          # Current active profile
-├── work.json           # work profile
-├── personal.json       # personal profile
-└── test.json           # test profile
+├── state.json          # Tracks current profile per provider
+├── claude/
+│   ├── work.json
+│   ├── personal.json
+│   └── test.json
+└── codex/              # Future
+    └── ...
 ```
 
-### Claude Code Configuration
+### State File
 
-The tool manages `~/.claude/settings.json`.
-
-### Profile Format
-
-Each profile is a JSON file containing Claude Code settings:
+Each provider independently tracks its current active profile:
 
 ```json
 {
-  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "claude": {
+    "current_profile": "work"
+  }
+}
+```
+
+### Profile Format
+
+Each profile is a JSON file containing the provider's configuration directly (no metadata wrapper):
+
+```json
+{
   "model": "claude-opus-4-6",
   "permissions": {
     "allow": ["Read", "Grep", "Glob"],
@@ -145,103 +156,62 @@ Each profile is a JSON file containing Claude Code settings:
 ### Basic Workflow
 
 ```bash
-# Create a work profile from current config
-aip add work
+# Save current Claude Code config as a profile
+aip claude add work
 
-# Create a personal profile
-aip add personal --empty
+# Create another profile
+aip claude add personal --empty
+aip claude edit personal
 
-# Edit the personal profile
-aip edit personal
+# Switch between profiles
+aip claude use work
+aip claude use personal
 
-# Switch to work profile
-aip use work
-
-# Verify current profile
-aip current
-
-# List all profiles
-aip list
-
-# Switch to personal profile
-aip use personal
+# Verify
+aip claude current
+aip claude config
 ```
 
 ### Managing Multiple Environments
 
 ```bash
 # Create profiles for different contexts
-aip add development --empty
-aip add production --empty
-aip add testing --empty
+aip claude add development
+aip claude add production --empty
+aip claude add testing --empty
 
-# Configure each profile
-aip edit development
-aip edit production
-aip edit testing
+# Configure each
+aip claude edit production
+aip claude edit testing
 
-# Switch between them as needed
-aip use development
-aip use production
+# Switch as needed
+aip claude use development
+aip claude use production
 ```
 
 ## Security
 
-- Profile files are created with `0600` permissions (owner read/write only) on Unix systems
+- Profile files are created with `0600` permissions (owner read/write only) on Unix
 - Profile names are validated to prevent path traversal attacks
 - Atomic file operations using temporary files + rename
 
-## Error Handling
+## Architecture
 
-The tool provides clear, actionable error messages:
-
-```bash
-$ aip show nonexistent
-Error: Profile 'nonexistent' not found
-
-$ aip add work
-Error: Profile 'work' already exists
-
-$ aip add "invalid/name"
-Error: Profile name cannot contain path separators
-```
+See [PLAN.md](PLAN.md) for detailed architecture documentation including:
+- Provider trait design
+- Design decision records
+- Implementation phases
 
 ## Development
 
-### Build
-
 ```bash
-cargo build          # Debug build
-cargo build --release # Release build
+cargo build          # Build
+cargo test           # Test
+cargo clippy         # Lint
+cargo fmt            # Format
+cargo run -- <args>  # Run
 ```
-
-### Run
-
-```bash
-cargo run -- <args>
-```
-
-### Test
-
-```bash
-cargo test
-```
-
-### Lint and Format
-
-```bash
-cargo clippy
-cargo fmt
-```
-
-## Architecture
-
-See [PLAN.md](PLAN.md) for detailed architecture documentation.
 
 ## License
 
 [Add your license here]
-
-## Contributing
-
-[Add contributing guidelines here]

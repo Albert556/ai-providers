@@ -1,15 +1,25 @@
-# AI Providers CLI 工具架构设计文档
+# AI Providers (aip) 架构设计文档
 
 ## 项目背景
 
-这是一个 Rust CLI 工具，用于管理 Claude Code 的配置文件。用户在不同的开发场景下需要使用不同的 Claude Code 配置（例如不同的 API 密钥、模型选择、权限设置等），手动编辑配置文件既繁琐又容易出错。本工具提供了一个简单的命令行界面来管理多个配置 profile，实现快速切换。
+这是一个 Rust CLI 工具，用于管理多种 AI 编程工具的配置文件。用户在不同的开发场景下需要使用不同的配置（例如不同的 API 密钥、模型选择、权限设置等），手动编辑配置文件既繁琐又容易出错。本工具提供了一个统一的命令行界面来管理多个配置 profile，实现快速切换。
 
-## 核心需求
+**当前版本（v1）先实现 Claude Code 支持，架构预留多 provider 扩展能力。**
 
-1. 管理多个 Claude Code 配置 profile
-2. 支持查看、添加、删除、编辑、切换 profile
-3. 简单直观的命令行界面
-4. 安全的配置文件操作
+## 设计决策记录
+
+| 决策项 | 选择 | 理由 |
+|--------|------|------|
+| 配置层级 | 仅用户级 `~/.claude/settings.json` | 保持简单，项目级配置通常不需要频繁切换 |
+| CLI 结构 | 按 provider 分组子命令 `aip claude <cmd>` | 各 provider 独立管理，清晰不混淆 |
+| 存储结构 | 按 provider 分目录 `~/.ai-providers/claude/` | 与 CLI 结构一致，便于管理 |
+| 状态管理 | 各 provider 独立追踪当前 profile | claude 可以在 'work' 而 codex 在 'dev' |
+| Profile 格式 | 纯配置，无元数据 | profile.json 内容 = settings.json 内容，简单直接 |
+| 切换策略 | 不自动保存 | 用户需手动 `aip claude add` 保存当前配置 |
+| edit 行为 | 只编辑 profile 文件 | 不自动同步到 settings.json，用户需 `use` 应用 |
+| 删除当前 profile | 允许 + 警告 | 显示警告并要求确认，删除后清除 state 中的当前标记 |
+| 代码架构 | Provider trait 抽象 | 先实现 ClaudeProvider，后续加 Codex 只需新增 struct |
+| 工具命名 | 保持 `aip` (AI Providers) | 通用名称，适合未来多 provider 扩展 |
 
 ## 技术选型
 
@@ -17,70 +27,211 @@
 
 | 库名 | 版本 | 用途 |
 |------|------|------|
-| `clap` | 4.x | CLI 参数解析，支持子命令和参数验证 |
+| `clap` | 4.x | CLI 参数解析，支持嵌套子命令、derive API |
 | `serde` | 1.x | 序列化/反序列化框架 |
 | `serde_json` | 1.x | JSON 格式支持 |
 | `anyhow` | 1.x | 错误处理，提供丰富的错误上下文 |
 | `colored` | 2.x | 终端彩色输出 |
 
-### 为什么选择这些库？
+### 选型理由
 
-- **clap**: Rust 生态中最成熟的 CLI 解析库，支持子命令、自动生成帮助信息、参数验证
+- **clap**: Rust 生态中最成熟的 CLI 解析库，原生支持嵌套子命令（`aip claude list`），自动生成帮助信息
 - **serde + serde_json**: 标准的 JSON 序列化方案，性能优秀，API 友好
 - **anyhow**: 简化错误处理，适合应用层代码（非库代码）
 - **colored**: 提供彩色输出，提升用户体验
 
 ## 架构设计
 
-### 目录结构
+### 项目目录结构
 
 ```
 ai-providers/
 ├── Cargo.toml
 ├── CLAUDE.md
+├── PLAN.md
 ├── README.md
 ├── src/
-│   ├── main.rs           # 程序入口，CLI 定义
-│   ├── commands/         # 命令实现
+│   ├── main.rs              # 程序入口，CLI 定义
+│   ├── provider/            # Provider 抽象层
+│   │   ├── mod.rs           # Provider trait 定义
+│   │   └── claude.rs        # ClaudeProvider 实现
+│   ├── profile/             # Profile 管理核心逻辑
 │   │   ├── mod.rs
-│   │   ├── list.rs       # list 命令
-│   │   ├── current.rs    # current 命令
-│   │   ├── show.rs       # show 命令
-│   │   ├── config.rs     # config 命令
-│   │   ├── add.rs        # add 命令
-│   │   ├── delete.rs     # delete 命令
-│   │   ├── edit.rs       # edit 命令
-│   │   └── use_cmd.rs    # use 命令
-│   ├── profile/          # Profile 管理核心逻辑
-│   │   ├── mod.rs
-│   │   ├── manager.rs    # ProfileManager 结构体
-│   │   └── storage.rs    # 文件存储操作
-│   ├── config/           # 配置相关
-│   │   ├── mod.rs
-│   │   └── paths.rs      # 路径管理
-│   └── error.rs          # 错误类型定义（可选）
+│   │   ├── manager.rs       # ProfileManager（通用，接收 Provider）
+│   │   └── storage.rs       # 文件 I/O 操作
+│   └── commands/            # 子命令实现
+│       ├── mod.rs
+│       ├── list.rs          # list 命令
+│       ├── current.rs       # current 命令
+│       ├── show.rs          # show 命令
+│       ├── config.rs        # config 命令
+│       ├── add.rs           # add 命令
+│       ├── delete.rs        # delete 命令
+│       ├── edit.rs          # edit 命令
+│       └── use_cmd.rs       # use 命令
+```
+
+### 数据存储结构
+
+```
+~/.ai-providers/
+├── state.json              # 全局状态（各 provider 的当前 profile）
+├── claude/                  # Claude Code profiles
+│   ├── work.json
+│   ├── personal.json
+│   └── test.json
+└── codex/                   # 未来：Codex profiles
+    ├── work.json
+    └── dev.json
 ```
 
 ### 核心模块设计
 
-#### 1. CLI 定义 (main.rs)
+#### 1. Provider Trait (`provider/mod.rs`)
 
-使用 clap 的 derive API 定义命令行接口：
+定义 provider 的统一接口，各 AI 工具实现此 trait：
+
+```rust
+use std::path::PathBuf;
+use anyhow::Result;
+
+pub trait Provider {
+    /// Provider 标识名，用于 CLI 子命令和存储目录名
+    fn name(&self) -> &str;
+
+    /// 该 provider 的配置文件路径（如 ~/.claude/settings.json）
+    fn config_path(&self) -> PathBuf;
+
+    /// 验证 JSON 内容是否为合法的配置（可选，默认只检查 JSON 格式）
+    fn validate_config(&self, content: &serde_json::Value) -> Result<()> {
+        let _ = content;
+        Ok(())
+    }
+}
+```
+
+#### 2. ClaudeProvider (`provider/claude.rs`)
+
+Claude Code 的具体实现：
+
+```rust
+pub struct ClaudeProvider;
+
+impl Provider for ClaudeProvider {
+    fn name(&self) -> &str {
+        "claude"
+    }
+
+    fn config_path(&self) -> PathBuf {
+        // ~/.claude/settings.json
+        dirs::home_dir()
+            .expect("Cannot determine home directory")
+            .join(".claude")
+            .join("settings.json")
+    }
+}
+```
+
+#### 3. ProfileManager (`profile/manager.rs`)
+
+通用的 profile 管理逻辑，接收一个 Provider 实例：
+
+```rust
+pub struct ProfileManager<'a> {
+    provider: &'a dyn Provider,
+    profiles_dir: PathBuf,      // ~/.ai-providers/<provider_name>/
+    state_file: PathBuf,        // ~/.ai-providers/state.json
+}
+
+impl<'a> ProfileManager<'a> {
+    pub fn new(provider: &'a dyn Provider) -> Result<Self>;
+
+    // 查询操作
+    pub fn list_profiles(&self) -> Result<Vec<String>>;
+    pub fn get_current_profile(&self) -> Result<Option<String>>;
+    pub fn get_profile(&self, name: &str) -> Result<serde_json::Value>;
+    pub fn get_active_config(&self) -> Result<serde_json::Value>;
+
+    // 修改操作
+    pub fn add_profile(&self, name: &str, source: ProfileSource) -> Result<()>;
+    pub fn delete_profile(&self, name: &str) -> Result<()>;
+    pub fn use_profile(&self, name: &str) -> Result<()>;
+
+    // 辅助方法
+    pub fn profile_exists(&self, name: &str) -> bool;
+    pub fn validate_profile_name(&self, name: &str) -> Result<()>;
+    pub fn profile_path(&self, name: &str) -> PathBuf;
+}
+
+pub enum ProfileSource {
+    Empty,
+    FromCurrent,           // 从当前生效的配置文件复制
+    FromProfile(String),   // 从已有 profile 复制
+}
+```
+
+#### 4. Storage (`profile/storage.rs`)
+
+文件 I/O 操作封装：
+
+```rust
+/// 读取 JSON 文件
+pub fn read_json(path: &Path) -> Result<serde_json::Value>;
+
+/// 原子写入 JSON 文件（临时文件 + rename）
+pub fn write_json(path: &Path, value: &serde_json::Value) -> Result<()>;
+
+/// 删除文件
+pub fn remove_file(path: &Path) -> Result<()>;
+
+/// 读取全局状态
+pub fn read_state(path: &Path) -> Result<State>;
+
+/// 更新全局状态中某个 provider 的当前 profile
+pub fn update_state(path: &Path, provider: &str, profile: Option<&str>) -> Result<()>;
+```
+
+#### 5. 状态文件格式 (`state.json`)
+
+```json
+{
+  "claude": {
+    "current_profile": "work"
+  }
+}
+```
+
+各 provider 独立追踪，互不影响。未来新增 provider 只需在对应 key 下添加即可。
+
+#### 6. CLI 定义 (`main.rs`)
+
+使用 clap 的嵌套子命令支持 `aip <provider> <command>` 结构：
 
 ```rust
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(name = "aip")]
-#[command(about = "AI Providers - Manage Claude Code configuration profiles")]
+#[command(about = "AI Providers - Manage AI tool configuration profiles")]
 #[command(version)]
 struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    command: ProviderCommand,
 }
 
 #[derive(Subcommand)]
-enum Commands {
+enum ProviderCommand {
+    /// Manage Claude Code profiles
+    Claude {
+        #[command(subcommand)]
+        command: ProfileCommands,
+    },
+    // 未来：
+    // Codex { #[command(subcommand)] command: ProfileCommands },
+}
+
+#[derive(Subcommand)]
+enum ProfileCommands {
     /// List all profiles
     #[command(alias = "ls")]
     List,
@@ -94,18 +245,16 @@ enum Commands {
         profile: String,
     },
 
-    /// Show current Claude Code configuration
+    /// Show current configuration file content
     Config,
 
     /// Add a new profile
     Add {
         /// Profile name
         profile: String,
-
         /// Copy from existing profile
         #[arg(short, long)]
         from: Option<String>,
-
         /// Create empty profile (default: copy from current config)
         #[arg(short, long)]
         empty: bool,
@@ -115,13 +264,12 @@ enum Commands {
     Delete {
         /// Profile name
         profile: String,
-
         /// Force deletion without confirmation
         #[arg(short, long)]
         force: bool,
     },
 
-    /// Edit a profile
+    /// Edit a profile with $EDITOR
     Edit {
         /// Profile name
         profile: String,
@@ -135,93 +283,29 @@ enum Commands {
 }
 ```
 
-#### 2. Profile Manager (profile/manager.rs)
-
-核心业务逻辑，负责 profile 的 CRUD 操作：
-
-```rust
-pub struct ProfileManager {
-    profiles_dir: PathBuf,
-    claude_config_path: PathBuf,
-    state_file: PathBuf,
-}
-
-impl ProfileManager {
-    pub fn new() -> Result<Self>;
-
-    // 查询操作
-    pub fn list_profiles(&self) -> Result<Vec<String>>;
-    pub fn get_current_profile(&self) -> Result<Option<String>>;
-    pub fn get_profile(&self, name: &str) -> Result<serde_json::Value>;
-    pub fn get_claude_config(&self) -> Result<serde_json::Value>;
-
-    // 修改操作
-    pub fn add_profile(&self, name: &str, source: ProfileSource) -> Result<()>;
-    pub fn delete_profile(&self, name: &str) -> Result<()>;
-    pub fn use_profile(&self, name: &str) -> Result<()>;
-
-    // 辅助方法
-    pub fn profile_exists(&self, name: &str) -> bool;
-    pub fn validate_profile_name(&self, name: &str) -> Result<()>;
-}
-
-pub enum ProfileSource {
-    Empty,
-    FromCurrent,
-    FromProfile(String),
-}
-```
-
-#### 3. 路径管理 (config/paths.rs)
-
-统一管理所有文件路径：
-
-```rust
-pub struct Paths {
-    pub profiles_dir: PathBuf,      // ~/.ai-providers/
-    pub state_file: PathBuf,         // ~/.ai-providers/state.json
-    pub claude_config: PathBuf,      // ~/.claude/settings.json
-}
-
-impl Paths {
-    pub fn new() -> Result<Self>;
-    pub fn ensure_dirs(&self) -> Result<()>;
-    pub fn profile_path(&self, name: &str) -> PathBuf;
-}
-```
-
-#### 4. 状态管理
-
-使用一个简单的 JSON 文件记录当前激活的 profile：
-
-```json
-{
-  "current_profile": "work"
-}
-```
-
-存储位置：`~/.ai-providers/state.json`
-
 ## CLI 命令详细设计
 
-### 1. `aip list` / `aip ls`
+所有命令格式为 `aip claude <command> [args]`。
 
-**功能**: 列出所有 profile，并标记当前激活的 profile
+### 1. `aip claude list` / `aip claude ls`
+
+**功能**: 列出所有 Claude Code profiles，标记当前激活的 profile
 
 **输出示例**:
 ```
-Available profiles:
+Claude Code profiles:
   * work      (current)
     personal
     test
 ```
 
 **实现要点**:
-- 读取 `~/.ai-providers/` 目录下所有 `.json` 文件
-- 从 `state.json` 读取当前激活的 profile
-- 使用彩色输出标记当前 profile（绿色 + 星号）
+- 读取 `~/.ai-providers/claude/` 目录下所有 `.json` 文件
+- 从 `state.json` 的 `claude.current_profile` 读取当前激活 profile
+- 当前 profile 绿色高亮 + 星号标记
+- 无 profile 时显示 "No profiles found. Use 'aip claude add <name>' to create one."
 
-### 2. `aip current`
+### 2. `aip claude current`
 
 **功能**: 显示当前激活的 profile 名称
 
@@ -230,11 +314,12 @@ Available profiles:
 Current profile: work
 ```
 
-**实现要点**:
-- 读取 `state.json` 中的 `current_profile` 字段
-- 如果没有激活的 profile，显示 "No profile is currently active"
+**无激活 profile 时**:
+```
+No profile is currently active
+```
 
-### 3. `aip show <profile>`
+### 3. `aip claude show <profile>`
 
 **功能**: 显示指定 profile 的完整配置内容
 
@@ -249,95 +334,99 @@ Profile: work
 }
 ```
 
-**实现要点**:
-- 读取 `~/.ai-providers/<profile>.json`
-- 使用 `serde_json` 格式化输出（pretty print）
-- 如果 profile 不存在，报错
+**错误处理**:
+- Profile 不存在 → `Error: Profile 'xxx' not found`
 
-### 4. `aip config`
+### 4. `aip claude config`
 
-**功能**: 显示当前 Claude Code 的配置内容
+**功能**: 显示当前生效的 Claude Code 配置文件内容（`~/.claude/settings.json`）
 
 **输出示例**:
 ```
-Current Claude Code configuration:
+Current Claude Code configuration (~/.claude/settings.json):
 {
-  "model": "claude-sonnet-4-6",
-  "permissions": {
-    "allow": ["*"]
-  }
+  "model": "opus[1m]",
+  "effortLevel": "high"
 }
 ```
 
-**实现要点**:
-- 读取 `~/.claude/settings.json`
-- 如果文件不存在，显示警告信息
+**说明**: 此命令显示的是实际生效的配置文件，可能与任何 profile 不同（用户可能手动修改过）。
 
-### 5. `aip add <profile> [--from <source>] [--empty]`
+**错误处理**:
+- 文件不存在 → 黄色警告 "Claude Code configuration file not found"
 
-**功能**: 添加新的 profile
+### 5. `aip claude add <profile> [--from <source>] [--empty]`
+
+**功能**: 创建新的 profile
 
 **使用场景**:
-- `aip add work` - 从当前 Claude Code 配置复制创建（默认行为）
-- `aip add work --empty` - 创建空的 profile
-- `aip add work --from personal` - 从现有 profile 复制
+```bash
+aip claude add work              # 从当前 settings.json 复制（默认）
+aip claude add work --empty      # 创建空 profile ({})
+aip claude add work --from dev   # 从已有 profile 复制
+```
 
 **实现要点**:
-- 验证 profile 名称（不能包含特殊字符、路径分隔符）
+- 验证 profile 名称（禁止：路径分隔符、`.`开头、空名称、`state` 保留名）
 - 检查 profile 是否已存在
-- 根据参数选择数据源
-- 创建 `~/.ai-providers/<profile>.json`
+- 根据参数选择数据源：
+  - 默认（无 flag）：读取 `~/.claude/settings.json` 内容
+  - `--empty`：创建空 JSON `{}`
+  - `--from <name>`：读取 `~/.ai-providers/claude/<name>.json`
+- 写入 `~/.ai-providers/claude/<profile>.json`
 
 **错误处理**:
 - Profile 已存在 → 报错
-- 源 profile 不存在 → 报错
-- Claude Code 配置不存在且未指定 --empty → 警告并创建空 profile
+- `--from` 源 profile 不存在 → 报错
+- 默认模式下 `~/.claude/settings.json` 不存在 → 警告并创建空 profile
 
-### 6. `aip delete <profile> [-f]`
+### 6. `aip claude delete <profile> [-f]`
 
-**功能**: 删除指定 profile
+**功能**: 删除 profile
 
 **使用场景**:
-- `aip delete work` - 删除前要求确认
-- `aip delete work -f` - 强制删除，不确认
+```bash
+aip claude delete work      # 需要确认
+aip claude delete work -f   # 强制删除
+```
 
 **实现要点**:
 - 检查 profile 是否存在
-- 如果是当前激活的 profile，警告用户
-- 默认要求确认（y/n）
-- 使用 `-f` 标志跳过确认
-- 删除 `~/.ai-providers/<profile>.json`
+- 如果是当前激活 profile，显示额外警告：
+  ```
+  Warning: 'work' is the currently active profile.
+  Are you sure you want to delete profile 'work'? (y/n):
+  ```
+- 删除后，如果是当前 profile，清除 `state.json` 中该 provider 的 `current_profile`
+- `-f` 跳过所有确认
 
-**确认提示**:
-```
-Are you sure you want to delete profile 'work'? (y/n):
-```
+### 7. `aip claude edit <profile>`
 
-### 7. `aip edit <profile>`
-
-**功能**: 使用编辑器编辑 profile 配置
+**功能**: 用编辑器编辑 profile 配置文件
 
 **实现要点**:
 - 检查 profile 是否存在
-- 读取 `$EDITOR` 环境变量（fallback: `vim` → `vi` → `nano`）
-- 使用 `std::process::Command` 调用编辑器
-- 编辑后验证 JSON 格式是否正确
-- 如果 JSON 无效，询问用户是否重新编辑
+- 编辑器选择优先级：`$EDITOR` → `vim` → `vi` → `nano`
+- 使用 `std::process::Command` 调用编辑器打开 profile 文件
+- 编辑后验证 JSON 格式
+- JSON 无效时显示错误详情，询问是否重新编辑
+
+**注意**: edit 只修改 profile 文件（`~/.ai-providers/claude/<profile>.json`），**不会**自动同步到 `~/.claude/settings.json`。即使该 profile 是当前激活的，用户也需要手动 `aip claude use <profile>` 来应用修改。
 
 **错误处理**:
 - Profile 不存在 → 报错
-- 编辑器未找到 → 报错并提示设置 $EDITOR
+- 编辑器未找到 → 报错并提示设置 `$EDITOR`
 - JSON 格式错误 → 显示错误详情，询问是否重新编辑
 
-### 8. `aip use <profile>`
+### 8. `aip claude use <profile>`
 
-**功能**: 切换到指定 profile
+**功能**: 切换到指定 profile（将 profile 内容写入 settings.json）
 
 **实现要点**:
 - 检查 profile 是否存在
-- 读取 `~/.ai-providers/<profile>.json`
-- 覆盖写入 `~/.claude/settings.json`
-- 更新 `state.json` 中的 `current_profile`
+- 读取 `~/.ai-providers/claude/<profile>.json`
+- **直接覆盖** `~/.claude/settings.json`（不自动保存当前配置）
+- 更新 `state.json` 中 `claude.current_profile`
 
 **输出示例**:
 ```
@@ -347,79 +436,30 @@ Switched to profile 'work'
 **错误处理**:
 - Profile 不存在 → 报错
 - Profile JSON 格式错误 → 报错并显示详情
-- 无法写入 Claude Code 配置 → 报错
+- 无法写入目标配置文件 → 报错
 
-## 文件存储设计
+## 安全性设计
 
-### Profile 存储格式
-
-每个 profile 是一个独立的 JSON 文件：
-
-```
-~/.ai-providers/
-├── state.json          # 状态文件
-├── work.json           # work profile
-├── personal.json       # personal profile
-└── test.json           # test profile
-```
-
-### Profile 文件内容
-
-直接存储 Claude Code 的 `settings.json` 内容：
-
-```json
-{
-  "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "model": "claude-opus-4-6",
-  "permissions": {
-    "allow": ["Read", "Grep", "Glob"],
-    "ask": ["Edit", "Write"],
-    "deny": ["Bash"]
-  },
-  "env": {
-    "API_KEY": "sk-xxx"
-  }
-}
-```
-
-### 状态文件 (state.json)
-
-```json
-{
-  "current_profile": "work",
-  "last_updated": "2026-03-18T10:30:00Z"
-}
-```
+1. **文件权限**: profile 文件创建时设置为 `0600`（仅所有者可读写），因为可能包含 API 密钥
+2. **路径验证**: 验证 profile 名称，拒绝包含 `/`、`\`、`..` 的名称，防止路径遍历
+3. **原子写入**: 使用临时文件 + `rename` 的方式确保写入操作的原子性，避免写入中断导致文件损坏
+4. **保留名检查**: 拒绝 `state` 作为 profile 名（与 state.json 冲突）
 
 ## 错误处理策略
 
-### 错误类型
+使用 `anyhow::Result` 统一错误处理，所有面向用户的错误信息遵循以下规范：
 
-使用 `anyhow::Result` 作为统一的返回类型，在需要时添加上下文信息：
+### 彩色输出规范
 
-```rust
-use anyhow::{Context, Result};
+| 类型 | 颜色 | 前缀 |
+|------|------|------|
+| 成功 | 绿色 | ✓ |
+| 错误 | 红色 | Error: |
+| 警告 | 黄色 | Warning: |
+| 提示 | 蓝色 | Tip: |
 
-pub fn read_profile(name: &str) -> Result<serde_json::Value> {
-    let path = get_profile_path(name);
-    let content = std::fs::read_to_string(&path)
-        .with_context(|| format!("Failed to read profile '{}'", name))?;
+### 错误信息示例
 
-    let json = serde_json::from_str(&content)
-        .with_context(|| format!("Invalid JSON in profile '{}'", name))?;
-
-    Ok(json)
-}
-```
-
-### 用户友好的错误信息
-
-所有错误信息应该：
-1. 清晰说明发生了什么
-2. 提供可能的解决方案
-3. 使用彩色输出（红色表示错误）
-
-示例：
 ```
 Error: Profile 'work' not found
 
@@ -427,139 +467,67 @@ Available profiles:
   - personal
   - test
 
-Tip: Use 'aip add work' to create a new profile
+Tip: Use 'aip claude add work' to create a new profile
 ```
 
-## 输出格式设计
+## 未来扩展
 
-### 彩色输出规范
+以下功能在 v1 中不实现，但架构已预留扩展空间：
 
-- **成功信息**: 绿色
-- **错误信息**: 红色
-- **警告信息**: 黄色
-- **提示信息**: 蓝色
-- **当前激活项**: 绿色 + 粗体
-
-### 示例输出
-
-```rust
-use colored::*;
-
-println!("{}", "✓ Profile created successfully".green());
-println!("{}", "✗ Profile not found".red());
-println!("{}", "⚠ Claude Code configuration not found".yellow());
-println!("{}", "ℹ Tip: Use 'aip list' to see all profiles".blue());
-```
-
-## 安全性考虑
-
-1. **文件权限**: Profile 文件可能包含敏感信息（API 密钥），创建时设置为 `0600`（仅所有者可读写）
-2. **路径验证**: 验证 profile 名称，防止路径遍历攻击
-3. **原子操作**: 使用临时文件 + 重命名的方式确保写入操作的原子性
-4. **备份**: 在覆盖 Claude Code 配置前，可选地创建备份（未来功能）
-
-## 未来扩展功能
-
-以下功能在初始版本中不实现，但在架构设计中预留扩展空间：
-
-1. **交互式创建**: `aip add --interactive` - 通过问答式界面创建 profile
-2. **Profile 模板**: 提供常用配置模板
-3. **配置验证**: 验证 profile 配置是否符合 Claude Code schema
-4. **配置合并**: 支持部分配置覆盖而非完全替换
-5. **多文件支持**: 同时管理 `settings.json` 和 `.claude.json`
-6. **备份功能**: 自动备份被覆盖的配置
-7. **导入导出**: 支持导入导出 profile 用于分享
-8. **配置 diff**: 比较两个 profile 的差异
+1. **新增 Provider**: 实现 `Provider` trait 即可支持新的 AI 工具（Codex、Cursor 等）
+2. **配置 diff**: `aip claude diff <profile1> <profile2>` 比较两个 profile 差异
+3. **导入导出**: `aip claude export/import` 用于分享 profile
+4. **配置验证**: 根据 JSON Schema 验证配置是否合法
+5. **备份功能**: `aip claude use` 时自动备份被覆盖的配置
 
 ## 实现步骤
 
-### Phase 1: 基础框架
-1. 更新 `Cargo.toml`，添加依赖
-2. 实现 `config/paths.rs` - 路径管理
-3. 实现 `profile/storage.rs` - 基础文件操作
-4. 实现 `profile/manager.rs` - ProfileManager 核心逻辑
+### Phase 1: 重构基础架构
+1. 新增 `provider/` 模块，定义 Provider trait
+2. 实现 `ClaudeProvider`
+3. 重构 `profile/manager.rs`，接收 Provider 参数
+4. 重构存储目录结构（从 `~/.ai-providers/*.json` 到 `~/.ai-providers/claude/*.json`）
+5. 重构 `state.json` 格式（从 `{current_profile}` 到 `{claude: {current_profile}}`）
 
-### Phase 2: 命令实现
-5. 实现 `commands/list.rs` - list 命令
-6. 实现 `commands/current.rs` - current 命令
-7. 实现 `commands/show.rs` - show 命令
-8. 实现 `commands/config.rs` - config 命令
-9. 实现 `commands/add.rs` - add 命令
-10. 实现 `commands/delete.rs` - delete 命令
-11. 实现 `commands/edit.rs` - edit 命令
-12. 实现 `commands/use_cmd.rs` - use 命令
+### Phase 2: 重构 CLI
+6. 修改 `main.rs`，使用嵌套子命令 `aip claude <cmd>`
+7. 更新所有命令实现，使用 Provider 和新的 ProfileManager
 
-### Phase 3: 集成和优化
-13. 更新 `main.rs` - 集成所有命令
-14. 添加错误处理和用户友好的错误信息
-15. 添加彩色输出
-16. 编写测试
-
-### Phase 4: 文档和发布
-17. 更新 README.md
-18. 编写使用文档
-19. 测试完整工作流
-20. 发布第一个版本
-
-## 关键文件清单
-
-实现过程中需要创建/修改的文件：
-
-- `Cargo.toml` - 添加依赖
-- `src/main.rs` - CLI 定义和程序入口
-- `src/config/mod.rs` - 配置模块导出
-- `src/config/paths.rs` - 路径管理
-- `src/profile/mod.rs` - Profile 模块导出
-- `src/profile/manager.rs` - ProfileManager 核心逻辑
-- `src/profile/storage.rs` - 文件存储操作
-- `src/commands/mod.rs` - 命令模块导出
-- `src/commands/list.rs` - list 命令
-- `src/commands/current.rs` - current 命令
-- `src/commands/show.rs` - show 命令
-- `src/commands/config.rs` - config 命令
-- `src/commands/add.rs` - add 命令
-- `src/commands/delete.rs` - delete 命令
-- `src/commands/edit.rs` - edit 命令
-- `src/commands/use_cmd.rs` - use 命令
+### Phase 3: 测试和文档
+8. 编写/更新测试
+9. 更新 README.md 和 CLAUDE.md
 
 ## 验证计划
 
-实现完成后，通过以下场景验证功能：
+### 基础流程
+```bash
+aip claude add work              # 从当前配置创建 work profile
+aip claude list                  # 查看所有 profiles
+aip claude show work             # 查看 work profile 详情
+aip claude config                # 查看当前生效配置
+aip claude edit work             # 编辑 work profile
+aip claude use work              # 切换到 work profile
+aip claude current               # 确认当前 profile
+```
 
-1. **基础流程**:
-   ```bash
-   aip add work              # 从当前配置创建 work profile
-   aip list                  # 查看所有 profiles
-   aip show work             # 查看 work profile 详情
-   aip edit work             # 编辑 work profile
-   aip use work              # 切换到 work profile
-   aip current               # 确认当前 profile
-   ```
+### 错误处理
+```bash
+aip claude show nonexistent      # profile 不存在
+aip claude add work              # 重复创建
+aip claude delete work           # 删除确认
+aip claude delete work -f        # 强制删除
+aip claude add "invalid/name"    # 非法 profile 名称
+```
 
-2. **错误处理**:
-   ```bash
-   aip show nonexistent      # 测试 profile 不存在
-   aip add work              # 测试重复创建
-   aip delete work           # 测试删除确认
-   aip delete work -f        # 测试强制删除
-   ```
-
-3. **边界情况**:
-   ```bash
-   aip add "invalid/name"    # 测试非法 profile 名称
-   aip use work              # 测试切换到不存在的 profile
-   # 手动破坏 JSON 格式，测试错误处理
-   ```
-
-4. **完整工作流**:
-   ```bash
-   # 场景：在 work 和 personal 配置间切换
-   aip add work --empty
-   aip edit work             # 配置 work 环境
-   aip add personal --empty
-   aip edit personal         # 配置 personal 环境
-   aip use work              # 切换到 work
-   aip config                # 验证配置已切换
-   aip use personal          # 切换到 personal
-   aip config                # 验证配置已切换
-   ```
+### 完整工作流
+```bash
+aip claude add work --empty
+aip claude edit work             # 配置 work 环境
+aip claude add personal --empty
+aip claude edit personal         # 配置 personal 环境
+aip claude use work              # 切换到 work
+aip claude config                # 验证配置已切换
+aip claude use personal          # 切换到 personal
+aip claude config                # 验证配置已切换
+aip claude delete work           # 删除（需确认，因为不是当前 profile）
+```

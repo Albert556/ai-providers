@@ -3,9 +3,7 @@ use colored::*;
 
 use crate::profile::manager::{ProfileManager, ProfileSource};
 
-pub fn execute(profile: &str, from: Option<String>, empty: bool) -> Result<()> {
-    let manager = ProfileManager::new()?;
-
+pub fn execute(manager: &ProfileManager, profile: &str, from: Option<String>, empty: bool) -> Result<()> {
     let source = if empty {
         ProfileSource::Empty
     } else if let Some(from_profile) = from {
@@ -16,7 +14,10 @@ pub fn execute(profile: &str, from: Option<String>, empty: bool) -> Result<()> {
 
     manager.add_profile(profile, source)?;
 
-    println!("{}", format!("✓ Profile '{}' created successfully", profile).green());
+    println!(
+        "{}",
+        format!("Profile '{}' created successfully", profile).green()
+    );
 
     Ok(())
 }

@@ -4,21 +4,25 @@ use std::io::{self, Write};
 
 use crate::profile::manager::ProfileManager;
 
-pub fn execute(profile: &str, force: bool) -> Result<()> {
-    let manager = ProfileManager::new()?;
-
+pub fn execute(manager: &ProfileManager, profile: &str, force: bool) -> Result<()> {
     if !manager.profile_exists(profile) {
-        println!("{}", format!("✗ Profile '{}' not found", profile).red());
+        println!("{}", format!("Profile '{}' not found", profile).red());
         return Ok(());
     }
 
     let current = manager.get_current_profile()?;
     if current.as_deref() == Some(profile) {
-        println!("{}", format!("⚠ Warning: '{}' is currently active", profile).yellow());
+        println!(
+            "{}",
+            format!("Warning: '{}' is the currently active profile", profile).yellow()
+        );
     }
 
     if !force {
-        print!("Are you sure you want to delete profile '{}'? (y/n): ", profile);
+        print!(
+            "Are you sure you want to delete profile '{}'? (y/n): ",
+            profile
+        );
         io::stdout().flush()?;
 
         let mut input = String::new();
@@ -31,7 +35,10 @@ pub fn execute(profile: &str, force: bool) -> Result<()> {
     }
 
     manager.delete_profile(profile)?;
-    println!("{}", format!("✓ Profile '{}' deleted successfully", profile).green());
+    println!(
+        "{}",
+        format!("Profile '{}' deleted successfully", profile).green()
+    );
 
     Ok(())
 }

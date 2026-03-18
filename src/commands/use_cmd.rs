@@ -3,12 +3,13 @@ use colored::*;
 
 use crate::profile::manager::ProfileManager;
 
-pub fn execute(profile: &str) -> Result<()> {
-    let manager = ProfileManager::new()?;
-
+pub fn execute(manager: &ProfileManager, profile: &str) -> Result<()> {
     manager.use_profile(profile)?;
 
-    println!("{}", format!("✓ Switched to profile '{}'", profile).green());
+    println!(
+        "{}",
+        format!("Switched to profile '{}'", profile).green()
+    );
 
     Ok(())
 }

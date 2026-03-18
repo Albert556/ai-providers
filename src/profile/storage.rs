@@ -1,40 +1,31 @@
 use anyhow::{Context, Result};
-use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
 use std::fs;
 use std::path::Path;
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct State {
-    pub current_profile: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub last_updated: Option<String>,
-}
-
-impl State {
-    pub fn new() -> Self {
-        Self {
-            current_profile: None,
-            last_updated: None,
-        }
-    }
-}
-
-pub fn read_json_file(path: &Path) -> Result<serde_json::Value> {
+pub fn read_json(path: &Path) -> Result<Value> {
     let content = fs::read_to_string(path)
         .with_context(|| format!("Failed to read file: {}", path.display()))?;
 
-    let json: serde_json::Value = serde_json::from_str(&content)
+    let json: Value = serde_json::from_str(&content)
         .with_context(|| format!("Invalid JSON in file: {}", path.display()))?;
 
     Ok(json)
 }
 
-pub fn write_json_file(path: &Path, value: &serde_json::Value) -> Result<()> {
+pub fn write_json(path: &Path, value: &Value) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        if !parent.exists() {
+            fs::create_dir_all(parent)
+                .with_context(|| format!("Failed to create directory: {}", parent.display()))?;
+        }
+    }
+
     let content = serde_json::to_string_pretty(value)
         .context("Failed to serialize JSON")?;
 
     let temp_path = path.with_extension("tmp");
-    fs::write(&temp_path, content)
+    fs::write(&temp_path, &content)
         .with_context(|| format!("Failed to write to temp file: {}", temp_path.display()))?;
 
     #[cfg(unix)]
@@ -51,30 +42,56 @@ pub fn write_json_file(path: &Path, value: &serde_json::Value) -> Result<()> {
     Ok(())
 }
 
-pub fn read_state(path: &Path) -> Result<State> {
-    if !path.exists() {
-        return Ok(State::new());
-    }
-
-    let content = fs::read_to_string(path)
-        .with_context(|| format!("Failed to read state file: {}", path.display()))?;
-
-    let state: State = serde_json::from_str(&content)
-        .with_context(|| format!("Invalid JSON in state file: {}", path.display()))?;
-
-    Ok(state)
+pub fn remove_file(path: &Path) -> Result<()> {
+    fs::remove_file(path)
+        .with_context(|| format!("Failed to remove file: {}", path.display()))
 }
 
-pub fn write_state(path: &Path, state: &State) -> Result<()> {
-    let content = serde_json::to_string_pretty(state)
-        .context("Failed to serialize state")?;
+/// Read the current profile for a specific provider from state.json
+pub fn read_current_profile(state_path: &Path, provider: &str) -> Result<Option<String>> {
+    if !state_path.exists() {
+        return Ok(None);
+    }
 
-    let temp_path = path.with_extension("tmp");
-    fs::write(&temp_path, content)
-        .with_context(|| format!("Failed to write to temp file: {}", temp_path.display()))?;
+    let state = read_json(state_path)?;
+    let current = state
+        .get(provider)
+        .and_then(|v| v.get("current_profile"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
 
-    fs::rename(&temp_path, path)
-        .with_context(|| format!("Failed to rename temp file to: {}", path.display()))?;
+    Ok(current)
+}
 
-    Ok(())
+/// Update the current profile for a specific provider in state.json
+pub fn update_current_profile(
+    state_path: &Path,
+    provider: &str,
+    profile: Option<&str>,
+) -> Result<()> {
+    let mut state = if state_path.exists() {
+        read_json(state_path)?
+    } else {
+        Value::Object(Map::new())
+    };
+
+    let obj = state
+        .as_object_mut()
+        .context("state.json is not a JSON object")?;
+
+    match profile {
+        Some(name) => {
+            let mut provider_state = Map::new();
+            provider_state.insert(
+                "current_profile".to_string(),
+                Value::String(name.to_string()),
+            );
+            obj.insert(provider.to_string(), Value::Object(provider_state));
+        }
+        None => {
+            obj.remove(provider);
+        }
+    }
+
+    write_json(state_path, &state)
 }
