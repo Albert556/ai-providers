@@ -1,0 +1,244 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  detect-version:
+    runs-on: ubuntu-latest
+    outputs:
+      old_version: ${{ steps.detect.outputs.old_version }}
+      new_version: ${{ steps.detect.outputs.new_version }}
+      version_changed: ${{ steps.detect.outputs.version_changed }}
+      tag: ${{ steps.detect.outputs.tag }}
+      tag_exists: ${{ steps.detect.outputs.tag_exists }}
+      release_exists: ${{ steps.detect.outputs.release_exists }}
+      should_release: ${{ steps.detect.outputs.should_release }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve push bounds
+        id: bounds
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          import os
+
+          event_path = os.environ["GITHUB_EVENT_PATH"]
+          with open(event_path, "r", encoding="utf-8") as fh:
+              event = json.load(fh)
+
+          before = event.get("before", "")
+          after = event.get("after") or os.environ.get("GITHUB_SHA", "")
+
+          if not before:
+              raise SystemExit("missing push before SHA in event payload")
+          if not after:
+              raise SystemExit("missing push after SHA in event payload")
+
+          print(f"before_sha={before}")
+          print(f"after_sha={after}")
+          PY
+
+      - name: Detect release requirement
+        id: detect
+        env:
+          GITEA_RELEASE_TOKEN: ${{ secrets.GITEA_RELEASE_TOKEN }}
+          GITEA_SERVER_URL: ${{ github.server_url }}
+        run: |
+          chmod +x scripts/ci/*.sh
+          scripts/ci/check_release_needed.sh \
+            "${{ steps.bounds.outputs.before_sha }}" \
+            "${{ steps.bounds.outputs.after_sha }}"
+
+  build:
+    needs: detect-version
+    if: needs.detect-version.outputs.should_release == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux
+            runs_on: ubuntu-latest
+            rust_target: x86_64-unknown-linux-gnu
+            artifact_target: x86_64-unknown-linux-gnu
+            binary_path: target/x86_64-unknown-linux-gnu/release/aip
+            needs_mingw: false
+          - name: macos
+            runs_on: macos-latest
+            rust_target: native
+            artifact_target: native
+            binary_path: target/release/aip
+            needs_mingw: false
+          - name: windows
+            runs_on: ubuntu-latest
+            rust_target: x86_64-pc-windows-gnu
+            artifact_target: x86_64-pc-windows-gnu
+            binary_path: target/x86_64-pc-windows-gnu/release/aip.exe
+            needs_mingw: true
+    runs-on: ${{ matrix.runs_on }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        run: rustup show
+
+      - name: Install Windows cross toolchain
+        if: matrix.needs_mingw
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-mingw-w64-x86-64
+
+      - name: Build release binary
+        id: build
+        run: |
+          chmod +x scripts/ci/*.sh
+          if [[ "${{ matrix.rust_target }}" == "native" ]]; then
+            cargo build --release
+            target="$(rustc -vV | awk '/host:/ {print $2}')"
+            binary_path="${{ matrix.binary_path }}"
+          else
+            rustup target add "${{ matrix.rust_target }}"
+            cargo build --release --target "${{ matrix.rust_target }}"
+            target="${{ matrix.artifact_target }}"
+            binary_path="${{ matrix.binary_path }}"
+          fi
+
+          packaged="$(scripts/ci/package_binary.sh \
+            "$binary_path" \
+            "${{ needs.detect-version.outputs.new_version }}" \
+            "$target")"
+
+          echo "artifact_path=$packaged" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=$(basename "$packaged")" >> "$GITHUB_OUTPUT"
+          echo "artifact_target=$target" >> "$GITHUB_OUTPUT"
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.build.outputs.artifact_name }}
+          path: ${{ steps.build.outputs.artifact_path }}
+
+  release:
+    needs:
+      - detect-version
+      - build
+    if: needs.detect-version.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Create tag if missing
+        env:
+          GITEA_RELEASE_TOKEN: ${{ secrets.GITEA_RELEASE_TOKEN }}
+          TAG: ${{ needs.detect-version.outputs.tag }}
+        run: |
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "tag ${TAG} already exists"
+            exit 0
+          fi
+
+          git config user.name "gitea-actions"
+          git config user.email "gitea-actions@localhost"
+          git tag "$TAG"
+          git -c http.extraHeader="Authorization: token ${GITEA_RELEASE_TOKEN}" \
+            push origin "refs/tags/${TAG}"
+
+      - name: Create release and upload assets
+        env:
+          GITEA_RELEASE_TOKEN: ${{ secrets.GITEA_RELEASE_TOKEN }}
+          GITEA_SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          TAG: ${{ needs.detect-version.outputs.tag }}
+          VERSION: ${{ needs.detect-version.outputs.new_version }}
+          SHA: ${{ github.sha }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import pathlib
+          import urllib.error
+          import urllib.request
+
+          token = os.environ["GITEA_RELEASE_TOKEN"]
+          server = os.environ["GITEA_SERVER_URL"].rstrip("/")
+          repo = os.environ["REPOSITORY"]
+          tag = os.environ["TAG"]
+          version = os.environ["VERSION"]
+          sha = os.environ["SHA"]
+          artifacts = sorted(pathlib.Path("dist").glob("*/*"))
+          artifact_lines = "\n".join(f"- {artifact.name}" for artifact in artifacts)
+          release_body = (
+              f"Automated release for {version}\n\n"
+              f"Commit: {sha}\n\n"
+              "Artifacts:\n"
+              f"{artifact_lines}"
+          )
+
+          releases_url = f"{server}/api/v1/repos/{repo}/releases"
+          tag_url = f"{releases_url}/tags/{tag}"
+          headers = {
+              "Authorization": f"token {token}",
+              "Accept": "application/json",
+              "Content-Type": "application/json",
+          }
+
+          def request_json(url, method="GET", body=None):
+              data = None if body is None else json.dumps(body).encode("utf-8")
+              req = urllib.request.Request(url, data=data, method=method, headers=headers)
+              with urllib.request.urlopen(req) as resp:
+                  payload = resp.read().decode("utf-8")
+                  return json.loads(payload) if payload else {}
+
+          try:
+              release = request_json(tag_url)
+          except urllib.error.HTTPError as exc:
+              if exc.code != 404:
+                  raise
+              body = {
+                  "tag_name": tag,
+                  "target_commitish": sha,
+                  "name": tag,
+                  "body": release_body,
+                  "draft": False,
+                  "prerelease": False,
+              }
+              release = request_json(releases_url, method="POST", body=body)
+
+          upload_url = f"{releases_url}/{release['id']}/assets"
+          for artifact in artifacts:
+              with artifact.open("rb") as fh:
+                  data = fh.read()
+              upload_headers = {
+                  "Authorization": f"token {token}",
+                  "Accept": "application/json",
+                  "Content-Type": "application/octet-stream",
+              }
+              url = f"{upload_url}?name={artifact.name}"
+              req = urllib.request.Request(url, data=data, method="POST", headers=upload_headers)
+              try:
+                  with urllib.request.urlopen(req):
+                      pass
+              except urllib.error.HTTPError as exc:
+                  if exc.code == 409:
+                      continue
+                  raise
+          PY

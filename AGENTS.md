@@ -105,11 +105,25 @@ cargo doc --open     # Generate and open documentation
 | `install.sh` | Build + installation helper script (cargo build --release, 3 install options) |
 | `.gitignore` | Git ignore rules |
 
+### Automation (`.gitea/`)
+
+| File | Purpose |
+|------|---------|
+| `.gitea/workflows/release.yml` | Gitea Actions workflow: detect version changes on `main`, build release binaries, create/publish releases idempotently |
+
 ### Documentation (`docs/`)
 
 | File | Purpose |
 |------|---------|
 | `docs/architecture.md` | Architecture and implementation details (Chinese): layered architecture, Provider trait, ProfileManager API, storage internals, security, extension guide |
+
+### Automation Scripts (`scripts/ci/`)
+
+| File | Purpose |
+|------|---------|
+| `scripts/ci/read_cargo_version.sh` | Extract `package.version` from a `Cargo.toml` file for CI logic |
+| `scripts/ci/check_release_needed.sh` | Compare push `before`/`after` versions, detect release necessity, and emit workflow outputs |
+| `scripts/ci/package_binary.sh` | Copy release binaries into a stable `aip-vX.Y.Z-<target>` naming scheme |
 
 ### Source: Entry Point (`src/`)
 
@@ -146,6 +160,12 @@ cargo doc --open     # Generate and open documentation
 | `src/commands/edit.rs` | `edit <profile>` | Open in `$EDITOR`/`$VISUAL`/vim/vi/nano, JSON validation loop |
 | `src/commands/use_cmd.rs` | `use <profile>` | Overwrite `settings.json` with profile, update state |
 
+### Tests (`tests/`)
+
+| File | Purpose |
+|------|---------|
+| `tests/ci_scripts.rs` | Integration tests for CI helper scripts: version extraction, release gating, artifact naming |
+
 ## Key Design Decisions
 
 - CLI structure: `aip <provider> <command>` (e.g., `aip claude list`)
@@ -156,6 +176,9 @@ cargo doc --open     # Generate and open documentation
 - Editing: `edit` only modifies the profile file, does not sync to settings.json
 - Deleting current profile: allowed with warning, clears state after deletion
 - Architecture: `Provider` trait with `ClaudeProvider` impl; add new providers by implementing trait
+- Release branch: `main` is the only release branch and should receive changes via PR merge
+- Release version source: `Cargo.toml` `package.version` is the single source of truth for automated releases
+- Release trigger: Gitea Actions publish only when a `main` push changes the version between `before` and `after`
 
 ## Documentation
 
