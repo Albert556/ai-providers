@@ -26,7 +26,6 @@
   - [JSON 校验与重编辑循环](#json-校验与重编辑循环)
   - [错误处理](#错误处理)
   - [彩色输出](#彩色输出)
-- [CI/CD 与发版流程](#cicd-与发版流程)
 - [核心流程](#核心流程)
   - [添加 Profile](#添加-profile)
   - [切换 Profile](#切换-profile)
@@ -597,52 +596,6 @@ remove_file(profiles_dir/<name>.json)
 | 保留名防护 | `ProfileManager::validate_profile_name` | 禁止 `"state"` 作为 profile 名 |
 | 删除确认 | `commands/delete.rs` | 默认交互式确认，防止误删 |
 | 条件编译 | `#[cfg(unix)]` | 权限逻辑仅在 Unix 上编译，保持跨平台兼容 |
-
-## CI/CD 与发版流程
-
-仓库采用 **GitHub Flow**：
-
-- `main` 是唯一发布分支
-- 日常开发从 `main` 拉出短生命周期分支
-- 通过 PR 合并回 `main`
-- 不把直接 push `main` 作为常规开发方式
-
-### 发版触发规则
-
-Gitea Actions 工作流位于 `.gitea/workflows/release.yml`，仅监听 `main` 的 `push` 事件。是否发版由本次 push 前后的 `Cargo.toml` 版本变化决定，而不是由最新 tag 决定。
-
-版本检测逻辑封装在 `scripts/ci/check_release_needed.sh`：
-
-1. 从事件载荷读取 push 的 `before` 与 `after` SHA
-2. 读取两个提交中的 `Cargo.toml`
-3. 使用 `scripts/ci/read_cargo_version.sh` 提取 `[package].version`
-4. 比较 `old_version` 与 `new_version`
-5. 只有版本变化且目标 tag / Release 均不存在时，才允许进入构建与发版
-
-这样设计的原因是：它回答的是“这次 push 是否引入了新的发布版本”，能覆盖 squash merge、merge commit 与 rebase merge，不会因为最新 tag 落后或历史发版失败而误判。
-
-### 幂等与防重
-
-工作流会同时检查：
-
-- 本地 git tag 是否已存在 `vX.Y.Z`
-- Gitea Release 是否已存在同名 tag
-
-任一存在时都视为该版本已经发布过，工作流应安全退出，不重复创建 tag 或 Release。这样 rerun 同一任务或重复触发 `main` push 时，结果都保持稳定。
-
-### 构建矩阵
-
-当前发布矩阵如下：
-
-| 平台 | 构建方式 | 目标 |
-|------|---------|------|
-| Linux | `debian-stable-slim` runner | `x86_64-unknown-linux-gnu` |
-| macOS | `macos` runner，使用 runner 自身架构 | `rustc -vV` 解析出的 host triple |
-| Windows | `debian-stable-slim` runner 上交叉编译 | `x86_64-pc-windows-gnu` |
-
-产物重命名由 `scripts/ci/package_binary.sh` 负责，统一输出为 `aip-vX.Y.Z-<target>`，Windows 文件追加 `.exe`。
-
-如果 Windows 交叉编译在实际 runner 上不稳定，后续可以只替换 Windows 那一条 job 为原生 Windows runner，而不需要修改版本检测规则。
 
 ## 扩展指南：添加新 Provider
 

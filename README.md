@@ -204,32 +204,6 @@ This repository uses **GitHub Flow**:
 - Merge the pull request back into `main`
 - Avoid direct pushes to `main` during normal development
 
-`main` is the only release branch. Regular work should land through PR merges.
-
-## Release Flow
-
-Releases are automated through Gitea Actions and are driven by `Cargo.toml`.
-
-- The release workflow runs only for pushes to `main`
-- The workflow compares `Cargo.toml` between the push `before` and `after` commits
-- If `package.version` does not change, the workflow skips build and release
-- If `package.version` changes, the workflow creates `vX.Y.Z`, builds binaries, and publishes a Gitea Release
-- Existing tags or releases are treated as already published and are skipped safely
-
-### Maintainer Release Steps
-
-1. Create a feature branch from `main`
-2. Make the code and documentation changes
-3. Bump `package.version` in `Cargo.toml` only when that PR should produce a release
-4. Merge the PR into `main`
-5. Wait for the Gitea Action to create the matching `vX.Y.Z` Release
-
-Current release artifacts target:
-
-- Linux `x86_64-unknown-linux-gnu` on the `debian-stable-slim` runner label
-- macOS native runner architecture on the `macos` runner label
-- Windows `x86_64-pc-windows-gnu` via Linux cross-compilation on the `debian-stable-slim` runner label
-
 ## Architecture
 
 See [docs/architecture.md](docs/architecture.md) for detailed architecture documentation including:

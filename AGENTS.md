@@ -91,80 +91,48 @@ cargo doc --open     # Generate and open documentation
 
 ## File Index
 
-> **IMPORTANT**: Any file addition, removal, or rename MUST update this index.
+> Rule: add/remove/rename files => update this index.
 
-### Root Files
+### root
 
-| File | Purpose |
-|------|---------|
-| `Cargo.toml` | Project manifest: name=ai-providers, bin=aip, edition=2021, dependencies (clap, serde, serde_json, anyhow, colored) |
-| `Cargo.lock` | Dependency lock file |
-| `README.md` | User-facing documentation: installation, usage examples, configuration |
-| `CLAUDE.md` | This file. Claude Code guidance, file index, development commands |
-| `AGENTS.md` | Development guidance (symlink target for CLAUDE.md context) |
-| `install.sh` | Build + installation helper script (cargo build --release, 3 install options) |
-| `.gitignore` | Git ignore rules |
+- `Cargo.toml` :: manifest; bin=`aip`; deps=`clap,serde,serde_json,anyhow,colored`
+- `Cargo.lock` :: lockfile
+- `README.md` :: user-docs; install+usage+config
+- `CLAUDE.md` :: dev-guide; alias-context
+- `AGENTS.md` :: dev-guide; source-of-truth
+- `install.sh` :: release-build+install helper
+- `.gitignore` :: git ignore rules
 
-### Automation (`.gitea/`)
+### docs
 
-| File | Purpose |
-|------|---------|
-| `.gitea/workflows/release.yml` | Gitea Actions workflow: detect version changes on `main`, build release binaries, create/publish releases idempotently |
+- `docs/architecture.md` :: arch-doc(zh); layers+Provider+ProfileManager+storage+security+ext
 
-### Documentation (`docs/`)
+### src
 
-| File | Purpose |
-|------|---------|
-| `docs/architecture.md` | Architecture and implementation details (Chinese): layered architecture, Provider trait, ProfileManager API, storage internals, security, extension guide |
+- `src/main.rs` :: cli-entry; clap types+dispatch+top-level error handling
 
-### Automation Scripts (`scripts/ci/`)
+### src/provider
 
-| File | Purpose |
-|------|---------|
-| `scripts/ci/read_cargo_version.sh` | Extract `package.version` from a `Cargo.toml` file for CI logic |
-| `scripts/ci/check_release_needed.sh` | Compare push `before`/`after` versions, detect release necessity, and emit workflow outputs |
-| `scripts/ci/package_binary.sh` | Copy release binaries into a stable `aip-vX.Y.Z-<target>` naming scheme |
+- `src/provider/mod.rs` :: trait `Provider`; name+config_path+validate_config
+- `src/provider/claude.rs` :: impl `ClaudeProvider`; config=`~/.claude/settings.json`
 
-### Source: Entry Point (`src/`)
+### src/profile
 
-| File | Purpose |
-|------|---------|
-| `src/main.rs` | CLI definition (clap derive): `Cli` → `ProviderCommand` → `ProfileCommands` enums, command dispatch via `handle_profile_command()`, top-level error handling |
+- `src/profile/mod.rs` :: exports `manager,storage`
+- `src/profile/manager.rs` :: `ProfileManager`; list/get/add/delete/use; name validation; `ProfileSource`
+- `src/profile/storage.rs` :: json io; atomic write; 0600; state read/write
 
-### Source: Provider Layer (`src/provider/`)
+### src/commands
 
-| File | Purpose |
-|------|---------|
-| `src/provider/mod.rs` | `Provider` trait: `name()`, `config_path()`, `validate_config()` (default impl accepts any JSON) |
-| `src/provider/claude.rs` | `ClaudeProvider` struct: name="claude", config_path=`~/.claude/settings.json` |
-
-### Source: Profile Layer (`src/profile/`)
-
-| File | Purpose |
-|------|---------|
-| `src/profile/mod.rs` | Module exports: `manager`, `storage` |
-| `src/profile/manager.rs` | `ProfileManager<'a>` (holds `&dyn Provider`): list/get/add/delete/use profiles, name validation, `ProfileSource` enum (Empty, FromCurrent, FromProfile) |
-| `src/profile/storage.rs` | File I/O functions: `read_json`, `write_json` (atomic: temp+rename, Unix 0600 perms), `remove_file`, `read_current_profile`, `update_current_profile` |
-
-### Source: Commands (`src/commands/`)
-
-| File | Command | Purpose |
-|------|---------|---------|
-| `src/commands/mod.rs` | — | Module exports for all commands |
-| `src/commands/list.rs` | `list` / `ls` | List all profiles, highlight current (green + `*`) |
-| `src/commands/current.rs` | `current` | Show current active profile name |
-| `src/commands/show.rs` | `show <profile>` | Display profile JSON content |
-| `src/commands/config.rs` | `config` | Display active `settings.json` content |
-| `src/commands/add.rs` | `add <profile> [--from] [--empty]` | Create new profile from current config / empty / existing profile |
-| `src/commands/delete.rs` | `delete <profile> [-f]` | Delete profile with confirmation, warn if current |
-| `src/commands/edit.rs` | `edit <profile>` | Open in `$EDITOR`/`$VISUAL`/vim/vi/nano, JSON validation loop |
-| `src/commands/use_cmd.rs` | `use <profile>` | Overwrite `settings.json` with profile, update state |
-
-### Tests (`tests/`)
-
-| File | Purpose |
-|------|---------|
-| `tests/ci_scripts.rs` | Integration tests for CI helper scripts: version extraction, release gating, artifact naming |
+- `src/commands/mod.rs` :: module exports
+- `src/commands/list.rs` :: cmd=`list|ls`; list profiles; mark current
+- `src/commands/current.rs` :: cmd=`current`; show current profile
+- `src/commands/show.rs` :: cmd=`show`; print profile json
+- `src/commands/config.rs` :: cmd=`config`; print active settings.json
+- `src/commands/add.rs` :: cmd=`add`; create from current/empty/profile
+- `src/commands/delete.rs` :: cmd=`delete`; confirm delete; warn if current
+- `src/commands/edit.rs` :: cmd=`edit`; open editor; validate json
+- `src/commands/use_cmd.rs` :: cmd=`use`; apply profile; update state
 
 ## Key Design Decisions
 
@@ -176,9 +144,6 @@ cargo doc --open     # Generate and open documentation
 - Editing: `edit` only modifies the profile file, does not sync to settings.json
 - Deleting current profile: allowed with warning, clears state after deletion
 - Architecture: `Provider` trait with `ClaudeProvider` impl; add new providers by implementing trait
-- Release branch: `main` is the only release branch and should receive changes via PR merge
-- Release version source: `Cargo.toml` `package.version` is the single source of truth for automated releases
-- Release trigger: Gitea Actions publish only when a `main` push changes the version between `before` and `after`
 
 ## Documentation
 
