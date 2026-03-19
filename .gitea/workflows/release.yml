@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   detect-version:
-    runs-on: debian-stable-slim
+    runs-on: ubuntu-24.04
     outputs:
       old_version: ${{ steps.detect.outputs.old_version }}
       new_version: ${{ steps.detect.outputs.new_version }}
@@ -68,7 +68,7 @@ jobs:
       matrix:
         include:
           - name: linux
-            runs_on: debian-stable-slim
+            runs_on: ubuntu-24.04
             rust_target: x86_64-unknown-linux-gnu
             artifact_target: x86_64-unknown-linux-gnu
             binary_path: target/x86_64-unknown-linux-gnu/release/aip
@@ -80,7 +80,7 @@ jobs:
             binary_path: target/release/aip
             needs_mingw: false
           - name: windows
-            runs_on: debian-stable-slim
+            runs_on: ubuntu-24.04
             rust_target: x86_64-pc-windows-gnu
             artifact_target: x86_64-pc-windows-gnu
             binary_path: target/x86_64-pc-windows-gnu/release/aip.exe
@@ -134,7 +134,7 @@ jobs:
       - detect-version
       - build
     if: needs.detect-version.outputs.should_release == 'true'
-    runs-on: debian-stable-slim
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
