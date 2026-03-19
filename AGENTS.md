@@ -106,6 +106,7 @@ cargo doc --open     # Generate and open documentation
 ### .gitea
 
 - `.gitea/workflows/release.yml` :: release automation; version-detect+matrix-build+gitea-release
+- `.gitea/scripts/compare_versions.py` :: semver comparison; used by release workflow
 
 ### docs
 

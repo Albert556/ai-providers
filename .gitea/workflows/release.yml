@@ -41,49 +41,8 @@ jobs:
           OLD_VERSION=$(git show "${BEFORE}":Cargo.toml | grep '^version' | sed 's/.*"\(.*\)".*/\1/')
           echo "Previous version: $OLD_VERSION"
 
-          # Compare versions using full semver 2.0 rules (pre-release, build metadata)
-          RESULT=$(python3 -c "
-import re, sys
-
-def parse_semver(v):
-    m = re.match(r'^(\d+)\.(\d+)\.(\d+)(?:-([a-zA-Z0-9.]+))?(?:\+.*)?$', v)
-    if not m:
-        print(f'Invalid semver: {v}', file=sys.stderr)
-        sys.exit(2)
-    major, minor, patch = int(m[1]), int(m[2]), int(m[3])
-    pre = m[4]  # None if no pre-release
-    return (major, minor, patch, pre)
-
-def compare_pre(a, b):
-    # No pre-release > has pre-release (1.0.0 > 1.0.0-alpha)
-    if a is None and b is None: return 0
-    if a is None: return 1
-    if b is None: return -1
-    a_parts, b_parts = a.split('.'), b.split('.')
-    for ap, bp in zip(a_parts, b_parts):
-        a_num, b_num = ap.isdigit(), bp.isdigit()
-        if a_num and b_num:
-            diff = int(ap) - int(bp)
-            if diff != 0: return diff
-        elif a_num != b_num:
-            return -1 if a_num else 1  # numeric < string
-        else:
-            if ap < bp: return -1
-            if ap > bp: return 1
-    return len(a_parts) - len(b_parts)  # more fields = higher
-
-old_v, new_v = '$OLD_VERSION', '$NEW_VERSION'
-o = parse_semver(old_v)
-n = parse_semver(new_v)
-
-# Compare major.minor.patch first, then pre-release
-core = (n[0], n[1], n[2]) > (o[0], o[1], o[2])
-if (n[0], n[1], n[2]) == (o[0], o[1], o[2]):
-    result = compare_pre(n[3], o[3]) > 0
-else:
-    result = core
-print('true' if result else 'false')
-")
+          # Compare versions using full semver 2.0 rules
+          RESULT=$(python3 .gitea/scripts/compare_versions.py "$OLD_VERSION" "$NEW_VERSION")
 
           if [ "$RESULT" = "true" ]; then
             echo "Version upgraded: $OLD_VERSION -> $NEW_VERSION"
