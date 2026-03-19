@@ -70,6 +70,12 @@ jobs:
             cross_deps: "gcc-mingw-w64-x86-64"
     runs-on: ${{ matrix.runner }}
     steps:
+      - name: Setup fnm
+        if: runner.os == 'macOS'
+        run: |
+          eval "$(fnm env)"
+          echo "$(dirname $(fnm exec --using=default which node))" >> "$GITHUB_PATH"
+
       - uses: actions/checkout@v4
 
       - name: Install Rust toolchain
