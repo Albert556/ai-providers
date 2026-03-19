@@ -103,6 +103,10 @@ cargo doc --open     # Generate and open documentation
 - `install.sh` :: release-build+install helper
 - `.gitignore` :: git ignore rules
 
+### .gitea
+
+- `.gitea/workflows/release.yml` :: release automation; version-detect+matrix-build+gitea-release
+
 ### docs
 
 - `docs/architecture.md` :: arch-doc(zh); layers+Provider+ProfileManager+storage+security+ext
