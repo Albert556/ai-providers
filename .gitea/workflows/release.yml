@@ -10,8 +10,9 @@ jobs:
     outputs:
       release_needed: ${{ steps.check.outputs.release_needed }}
       version: ${{ steps.check.outputs.version }}
+      is_prerelease: ${{ steps.check.outputs.is_prerelease }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 20
 
@@ -53,6 +54,13 @@ jobs:
           fi
           echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
 
+          # Detect pre-release or build metadata (semver: contains - or +)
+          if echo "$NEW_VERSION" | grep -qE '[-+]'; then
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
     needs: check-version
     if: needs.check-version.outputs.release_needed == 'true'
@@ -76,7 +84,7 @@ jobs:
           eval "$(fnm env)"
           echo "$(dirname $(fnm exec --using=default which node))" >> "$GITHUB_PATH"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Rust toolchain
         if: runner.os != 'macOS'
@@ -124,7 +132,7 @@ jobs:
           echo "Built: $DEST"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: aip-${{ matrix.target }}
           path: aip-v*
@@ -133,10 +141,10 @@ jobs:
     needs: [check-version, build]
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           path: artifacts
 
@@ -165,5 +173,6 @@ jobs:
           tag_name: v${{ needs.check-version.outputs.version }}
           name: v${{ needs.check-version.outputs.version }}
           body: "Release v${{ needs.check-version.outputs.version }}"
+          prerelease: ${{ needs.check-version.outputs.is_prerelease }}
           files: |-
             release-files/**
