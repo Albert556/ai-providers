@@ -6,22 +6,46 @@ Currently supports **Claude Code**. Architecture designed for multi-provider exp
 
 ## Installation
 
+### Quick Install (Recommended)
+
+**Linux / macOS:**
+
+```bash
+curl -fsSL https://gitea.lan.wiqun.com/Albert/ai-providers/raw/branch/main/install.sh | sh
+```
+
+**Windows (PowerShell):**
+
+```powershell
+irm https://gitea.lan.wiqun.com/Albert/ai-providers/raw/branch/main/install.ps1 | iex
+```
+
+Options:
+
+```bash
+# Install specific version
+VERSION=0.1.0 curl -fsSL .../install.sh | sh
+
+# Custom install directory
+INSTALL_DIR=/opt/bin curl -fsSL .../install.sh | sh
+
+# Uninstall
+UNINSTALL=1 curl -fsSL .../install.sh | sh
+
+# Or run directly
+./install.sh --version 0.1.0
+./install.sh --uninstall
+```
+
+The installer downloads the prebuilt binary to `~/.local/bin` (Unix) or `%LOCALAPPDATA%\aip` (Windows) and automatically configures your PATH.
+
 ### From Source
 
 ```bash
 git clone <repository-url>
 cd ai-providers
 cargo build --release
-```
-
-The binary will be available at `target/release/aip`.
-
-### Add to PATH
-
-```bash
-sudo cp target/release/aip /usr/local/bin/
-# or
-sudo ln -s $(pwd)/target/release/aip /usr/local/bin/aip
+cp target/release/aip ~/.local/bin/
 ```
 
 ## Usage
