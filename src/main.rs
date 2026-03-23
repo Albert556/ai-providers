@@ -1,5 +1,5 @@
 use anyhow::Result;
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use colored::*;
 
 mod commands;
@@ -27,8 +27,25 @@ enum ProviderCommand {
         #[command(subcommand)]
         command: ProfileCommands,
     },
+    /// Generate shell completion scripts
+    #[command(visible_alias = "completions")]
+    Completion {
+        /// Shell to generate completions for
+        #[arg(value_enum)]
+        shell: CompletionShell,
+    },
     /// Launch interactive TUI
     Tui,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum CompletionShell {
+    Bash,
+    Elvish,
+    Fish,
+    #[value(name = "powershell")]
+    PowerShell,
+    Zsh,
 }
 
 #[derive(Subcommand)]
@@ -94,6 +111,9 @@ fn run() -> Result<()> {
             let provider = ClaudeProvider;
             let manager = ProfileManager::new(&provider)?;
             tui::run_tui(&manager)?;
+        }
+        Some(ProviderCommand::Completion { shell }) => {
+            commands::completion::execute(shell)?;
         }
         Some(ProviderCommand::Claude { command }) => {
             let provider = ClaudeProvider;

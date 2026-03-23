@@ -4,7 +4,7 @@ This file provides guidance to Claude Code when working with code in this reposi
 
 ## Project Overview
 
-This is a Rust CLI tool named `aip` (AI Providers) for managing AI tool configuration profiles. It supports multiple providers (Claude Code, Codex, etc.) via a `Provider` trait abstraction. Commands are organized by provider: `aip claude <command>`.
+This is a Rust CLI tool named `aip` (AI Providers) for managing AI tool configuration profiles. It supports multiple providers (Claude Code, Codex, etc.) via a `Provider` trait abstraction. Provider-specific commands use `aip claude <command>`, with top-level utility commands such as `aip completion <shell>`.
 
 **Current version (v1) implements Claude Code support only. Architecture supports multi-provider expansion.**
 
@@ -66,6 +66,9 @@ cargo run -- claude show <profile_name> --merged
 # Create a common (shared base) config
 cargo run -- claude add common --empty
 cargo run -- claude edit common
+
+# Generate shell completions
+cargo run -- completion zsh
 ```
 
 ### Testing
@@ -113,7 +116,7 @@ cargo doc --open     # Generate and open documentation
 
 ### root
 
-- `Cargo.toml` :: manifest; bin=`aip`; deps=`clap,serde,serde_json,anyhow,colored,ratatui,crossterm`
+- `Cargo.toml` :: manifest; bin=`aip`; deps=`clap,clap_complete,serde,serde_json,anyhow,colored,ratatui,crossterm`
 - `Cargo.lock` :: lockfile
 - `README.md` :: user-docs; install+usage+config
 - `CLAUDE.md` :: dev-guide; alias-context
@@ -165,6 +168,7 @@ cargo doc --open     # Generate and open documentation
 
 - `src/commands/mod.rs` :: module exports
 - `src/commands/list.rs` :: cmd=`list|ls`; list profiles; mark current
+- `src/commands/completion.rs` :: cmd=`completion|completions`; emit shell completion scripts to stdout
 - `src/commands/current.rs` :: cmd=`current`; show current profile
 - `src/commands/show.rs` :: cmd=`show`; print profile json
 - `src/commands/config.rs` :: cmd=`config`; print active settings.json
@@ -175,7 +179,7 @@ cargo doc --open     # Generate and open documentation
 
 ## Key Design Decisions
 
-- CLI structure: `aip <provider> <command>` (e.g., `aip claude list`)
+- CLI structure: provider commands use `aip <provider> <command>` (e.g., `aip claude list`), with top-level utilities like `aip tui` and `aip completion <shell>`
 - Storage: `~/.ai-providers/<provider>/<profile>.json` per-provider directories
 - State: each provider tracks its current profile independently in `~/.ai-providers/state.json`
 - Profile format: pure config (profile.json content = settings.json content, no metadata)

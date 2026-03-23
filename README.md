@@ -50,6 +50,29 @@ cp target/release/aip ~/.local/bin/
 
 This project checks in `Cargo.lock` so CLI builds and releases use a reproducible dependency set.
 
+### Shell Completions
+
+`aip` can generate completion scripts for `bash`, `zsh`, `fish`, `elvish`, and `powershell`.
+
+```bash
+# Preview in the terminal
+aip completion zsh
+
+# Bash
+mkdir -p ~/.local/share/bash-completion/completions
+aip completion bash > ~/.local/share/bash-completion/completions/aip
+
+# Zsh
+mkdir -p ~/.zsh/completions
+aip completion zsh > ~/.zsh/completions/_aip
+
+# Fish
+mkdir -p ~/.config/fish/completions
+aip completion fish > ~/.config/fish/completions/aip.fish
+```
+
+`aip completions <shell>` is also supported as an alias.
+
 ## Usage
 
 ### Interactive TUI
@@ -94,7 +117,7 @@ The TUI provides a full-screen interface to browse, switch, and manage profiles:
 
 ### CLI Commands
 
-Commands are organized by provider: `aip <provider> <command>`.
+Provider commands are organized as `aip <provider> <command>`. Utility commands such as `aip tui` and `aip completion <shell>` live at the top level.
 
 ### Claude Code
 
@@ -174,6 +197,16 @@ aip claude use work
 ```
 
 **Note**: This overwrites `~/.claude/settings.json` with the profile content. Current settings are not auto-saved. Use `aip claude add` to save your current configuration first if needed.
+
+#### Generate shell completions
+
+```bash
+aip completion zsh
+# or
+aip completions bash
+```
+
+The completion script is written to stdout so you can redirect it into your shell's completion directory.
 
 ## Configuration
 

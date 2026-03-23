@@ -47,6 +47,7 @@
 | 依赖 | 版本 | 用途 |
 |------|------|------|
 | `clap` | 4.5 | CLI 参数解析，derive 宏，嵌套子命令 |
+| `clap_complete` | 4.5 | 生成 Bash/Zsh/Fish/Elvish/PowerShell completion 脚本 |
 | `serde` | 1.0 | 序列化/反序列化框架 |
 | `serde_json` | 1.0 | JSON 读写 |
 | `anyhow` | 1.0 | 应用层错误处理，`.context()` 错误上下文 |
@@ -78,6 +79,7 @@ src/
 └── commands/                # 子命令实现
     ├── mod.rs               # 模块导出
     ├── list.rs              # list / ls
+    ├── completion.rs        # completion / completions
     ├── current.rs           # current
     ├── show.rs              # show
     ├── config.rs            # config
@@ -314,12 +316,15 @@ Profile 文件是**纯配置**——其内容直接就是 provider 的 `settings
 
 ```
 aip <provider> <command> [args] [options]
+aip <utility-command> [args] [options]
 ```
 
-当前只有 `claude` 一个 provider：
+当前顶层命令有三类：
 
 ```
 aip claude <command>
+aip completion <shell>
+aip tui
 ```
 
 `main.rs` 中的分发流程：
@@ -329,6 +334,8 @@ Cli::parse()
   → command == None | Tui
     → 创建 ClaudeProvider + ProfileManager
     → tui::run_tui(&manager)  // 启动 TUI
+  → ProviderCommand::Completion { shell }
+    → commands::completion::execute(shell)
   → ProviderCommand::Claude { command }
     → 创建 ClaudeProvider
     → 创建 ProfileManager::new(&provider)
@@ -359,6 +366,23 @@ Available profiles:
 ```
 $ aip claude current
 Current profile: work
+```
+
+#### `completion <shell>`（别名: `completions`）
+
+生成 shell completion 脚本并输出到 stdout，适合重定向到 shell 对应的 completions 目录。
+
+支持的 shell：
+- `bash`
+- `zsh`
+- `fish`
+- `elvish`
+- `powershell`
+
+示例：
+
+```
+$ aip completion zsh > ~/.zsh/completions/_aip
 ```
 
 #### `show <profile> [--merged/-m]`
