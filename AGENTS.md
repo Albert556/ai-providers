@@ -115,6 +115,10 @@ cargo doc --open     # Generate and open documentation
 - `install.ps1` :: windows-installer; irm|iex; downloads binary from Gitea Releases to %LOCALAPPDATA%\aip
 - `.gitignore` :: git ignore rules
 
+### .github
+
+- `.github/workflows/release.yml` :: GitHub release automation; version-detect+matrix-build+github-release
+
 ### .gitea
 
 - `.gitea/workflows/release.yml` :: release automation; version-detect+matrix-build+gitea-release

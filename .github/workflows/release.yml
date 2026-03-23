@@ -1,0 +1,178 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  check-version:
+    runs-on: ubuntu-slim
+    outputs:
+      release_needed: ${{ steps.check.outputs.release_needed }}
+      version: ${{ steps.check.outputs.version }}
+      is_prerelease: ${{ steps.check.outputs.is_prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 20
+
+      - name: Check version change
+        id: check
+        run: |
+          BEFORE="${{ github.event.before }}"
+          NEW_VERSION="$(awk '
+            BEGIN { in_package = 0 }
+            /^\[package\][[:space:]]*$/ { in_package = 1; next }
+            /^\[/ { in_package = 0 }
+            in_package && /^[[:space:]]*version[[:space:]]*=/ {
+              line = $0
+              sub(/^[^"]*"/, "", line)
+              sub(/".*$/, "", line)
+              print line
+              exit
+            }
+          ' Cargo.toml)"
+          echo "Current version: $NEW_VERSION"
+
+          if echo "$BEFORE" | grep -qE '^0+$'; then
+            echo "Initial push detected, triggering release"
+            echo "release_needed=true" >> "$GITHUB_OUTPUT"
+            echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          else
+            if ! git rev-parse --verify "${BEFORE}^{commit}" >/dev/null 2>&1; then
+              echo "::error::Before commit $BEFORE is not reachable within fetch-depth=20"
+              exit 1
+            fi
+
+            OLD_VERSION="$(git show "${BEFORE}:Cargo.toml" | awk '
+              BEGIN { in_package = 0 }
+              /^\[package\][[:space:]]*$/ { in_package = 1; next }
+              /^\[/ { in_package = 0 }
+              in_package && /^[[:space:]]*version[[:space:]]*=/ {
+                line = $0
+                sub(/^[^"]*"/, "", line)
+                sub(/".*$/, "", line)
+                print line
+                exit
+              }
+            ')"
+            echo "Previous version: $OLD_VERSION"
+
+            RESULT="$(python3 .gitea/scripts/compare_versions.py "$OLD_VERSION" "$NEW_VERSION")"
+            if [ "$RESULT" = "true" ]; then
+              echo "Version upgraded: $OLD_VERSION -> $NEW_VERSION"
+              echo "release_needed=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "Version not upgraded (old=$OLD_VERSION, new=$NEW_VERSION)"
+              echo "release_needed=false" >> "$GITHUB_OUTPUT"
+            fi
+            echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          fi
+
+          if echo "$NEW_VERSION" | grep -qE '[-+]'; then
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: check-version
+    if: needs.check-version.outputs.release_needed == 'true'
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-slim
+          - target: aarch64-apple-darwin
+            runner: macos-latest
+          - target: x86_64-pc-windows-gnu
+            runner: windows-latest
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install rustup and stable toolchain (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - name: Install rustup and stable GNU toolchain (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri https://win.rustup.rs/x86_64 -OutFile rustup-init.exe
+          .\rustup-init.exe -y --profile minimal --default-host x86_64-pc-windows-gnu --default-toolchain stable-x86_64-pc-windows-gnu
+          "$env:USERPROFILE\.cargo\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Add target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Fetch Cargo dependencies
+        run: cargo fetch --locked --target ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Rename binary
+        shell: bash
+        run: |
+          VERSION="${{ needs.check-version.outputs.version }}"
+          TARGET="${{ matrix.target }}"
+          SRC="target/${TARGET}/release/aip"
+          if [ "$TARGET" = "x86_64-pc-windows-gnu" ]; then
+            SRC="${SRC}.exe"
+            DEST="aip-v${VERSION}-${TARGET}.exe"
+          else
+            DEST="aip-v${VERSION}-${TARGET}"
+          fi
+          cp "$SRC" "$DEST"
+          echo "Built: $DEST"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aip-${{ matrix.target }}
+          path: aip-v*
+
+  release:
+    needs: [check-version, build]
+    runs-on: ubuntu-slim
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Flatten artifacts
+        run: |
+          mkdir -p release-files
+          find artifacts -type f -name 'aip-v*' -exec mv {} release-files/ \;
+          echo "Release files:"
+          ls -la release-files/
+
+      - name: Check if tag exists
+        id: tag-check
+        run: |
+          VERSION="${{ needs.check-version.outputs.version }}"
+          if git ls-remote --tags origin | grep -q "refs/tags/v${VERSION}$"; then
+            echo "Tag v${VERSION} already exists, skipping release"
+            echo "tag_exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag_exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create release
+        if: steps.tag-check.outputs.tag_exists != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.check-version.outputs.version }}
+          name: v${{ needs.check-version.outputs.version }}
+          body: Release v${{ needs.check-version.outputs.version }}
+          prerelease: ${{ needs.check-version.outputs.is_prerelease == 'true' }}
+          files: release-files/**
