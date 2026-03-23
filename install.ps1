@@ -1,6 +1,6 @@
-# install.ps1 — Install aip (AI Providers) from Gitea Releases
+# install.ps1 — Install aip (AI Providers) from GitHub Releases
 # Usage:
-#   irm https://gitea.lan.wiqun.com/Albert/ai-providers/raw/branch/main/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/Albert556/ai-providers/main/install.ps1 | iex
 #   $env:VERSION="1.1.0"; irm ... | iex
 #   $env:UNINSTALL="1"; irm ... | iex
 #   .\install.ps1 -Version 1.1.0
@@ -14,8 +14,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$GiteaBase = "https://gitea.lan.wiqun.com"
-$Repo = "Albert/ai-providers"
+$GitHubApiBase = "https://api.github.com"
+$GitHubBase = "https://github.com"
+$Repo = "Albert556/ai-providers"
 $Target = "x86_64-pc-windows-gnu"
 $DefaultInstallDir = Join-Path $env:LOCALAPPDATA "aip"
 
@@ -31,7 +32,7 @@ function Err($msg) {
 function Get-LatestVersion {
     # Try /releases/latest
     try {
-        $response = Invoke-RestMethod -Uri "$GiteaBase/api/v1/repos/$Repo/releases/latest" -UseBasicParsing
+        $response = Invoke-RestMethod -Uri "$GitHubApiBase/repos/$Repo/releases/latest" -UseBasicParsing
         $tag = $response.tag_name
         if ($tag) {
             return $tag -replace '^v', ''
@@ -40,7 +41,7 @@ function Get-LatestVersion {
 
     # Fallback: list releases
     try {
-        $response = Invoke-RestMethod -Uri "$GiteaBase/api/v1/repos/$Repo/releases?limit=1" -UseBasicParsing
+        $response = Invoke-RestMethod -Uri "$GitHubApiBase/repos/$Repo/releases?per_page=1" -UseBasicParsing
         if ($response.Count -gt 0) {
             $tag = $response[0].tag_name
             if ($tag) {
@@ -49,7 +50,7 @@ function Get-LatestVersion {
         }
     } catch {}
 
-    Err "could not determine latest version from Gitea API"
+    Err "could not determine latest version from GitHub API"
 }
 
 function Configure-Path($dir) {
@@ -97,7 +98,7 @@ function Do-Install {
 
     Say "installing aip v$Version ($Target)"
 
-    $url = "$GiteaBase/$Repo/releases/download/v$Version/aip-v$Version-$Target.exe"
+    $url = "$GitHubBase/$Repo/releases/download/v$Version/aip-v$Version-$Target.exe"
     $binPath = Join-Path $InstallDir "aip.exe"
 
     Say "downloading from $url"

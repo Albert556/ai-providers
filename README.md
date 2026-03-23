@@ -11,13 +11,13 @@ Currently supports **Claude Code**. Architecture designed for multi-provider exp
 **Linux / macOS:**
 
 ```bash
-curl -fsSL https://gitea.lan.wiqun.com/Albert/ai-providers/raw/branch/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/Albert556/ai-providers/main/install.sh | sh
 ```
 
 **Windows (PowerShell):**
 
 ```powershell
-irm https://gitea.lan.wiqun.com/Albert/ai-providers/raw/branch/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/Albert556/ai-providers/main/install.ps1 | iex
 ```
 
 Options:

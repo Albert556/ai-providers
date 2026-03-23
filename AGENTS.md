@@ -118,8 +118,8 @@ cargo doc --open     # Generate and open documentation
 - `README.md` :: user-docs; install+usage+config
 - `CLAUDE.md` :: dev-guide; alias-context
 - `AGENTS.md` :: dev-guide; source-of-truth
-- `install.sh` :: unix-installer; curl|sh; downloads binary from Gitea Releases to ~/.local/bin
-- `install.ps1` :: windows-installer; irm|iex; downloads binary from Gitea Releases to %LOCALAPPDATA%\aip
+- `install.sh` :: unix-installer; curl|sh; downloads binary from GitHub Releases to ~/.local/bin
+- `install.ps1` :: windows-installer; irm|iex; downloads binary from GitHub Releases to %LOCALAPPDATA%\aip
 - `.gitignore` :: git ignore rules
 
 ### .github

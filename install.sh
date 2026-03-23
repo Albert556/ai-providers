@@ -1,15 +1,16 @@
 #!/bin/sh
-# install.sh — Install aip (AI Providers) from Gitea Releases
+# install.sh — Install aip (AI Providers) from GitHub Releases
 # Usage:
-#   curl -fsSL https://gitea.lan.wiqun.com/Albert/ai-providers/raw/branch/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/Albert556/ai-providers/main/install.sh | sh
 #   VERSION=1.1.0 curl -fsSL ... | sh
 #   INSTALL_DIR=/opt/bin curl -fsSL ... | sh
 #   UNINSTALL=1 curl -fsSL ... | sh
 
 set -u
 
-GITEA_BASE="https://gitea.lan.wiqun.com"
-REPO="Albert/ai-providers"
+GITHUB_API_BASE="https://api.github.com"
+GITHUB_BASE="https://github.com"
+REPO="Albert556/ai-providers"
 DEFAULT_INSTALL_DIR="$HOME/.local/bin"
 PATH_EXPORT_COMMENT="# Added by aip installer"
 
@@ -80,7 +81,7 @@ detect_platform() {
 
 get_latest_version() {
     # Try /releases/latest first
-    _json="$(download_to_stdout "${GITEA_BASE}/api/v1/repos/${REPO}/releases/latest" 2>/dev/null)" || _json=""
+    _json="$(download_to_stdout "${GITHUB_API_BASE}/repos/${REPO}/releases/latest" 2>/dev/null)" || _json=""
 
     if [ -n "$_json" ]; then
         _version="$(printf '%s' "$_json" | grep -o '"tag_name"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"tag_name"[[:space:]]*:[[:space:]]*"v\{0,1\}\([^"]*\)".*/\1/')"
@@ -90,7 +91,7 @@ get_latest_version() {
     fi
 
     # Fallback: list releases
-    _json="$(download_to_stdout "${GITEA_BASE}/api/v1/repos/${REPO}/releases?limit=1" 2>/dev/null)" || _json=""
+    _json="$(download_to_stdout "${GITHUB_API_BASE}/repos/${REPO}/releases?per_page=1" 2>/dev/null)" || _json=""
     if [ -n "$_json" ]; then
         _version="$(printf '%s' "$_json" | grep -o '"tag_name"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"tag_name"[[:space:]]*:[[:space:]]*"v\{0,1\}\([^"]*\)".*/\1/')"
         if [ -n "$_version" ]; then
@@ -98,7 +99,7 @@ get_latest_version() {
         fi
     fi
 
-    err "could not determine latest version from Gitea API"
+    err "could not determine latest version from GitHub API"
 }
 
 configure_path() {
@@ -190,7 +191,7 @@ do_install() {
     trap 'rm -rf "$_tmp_dir"' EXIT
 
     # Construct download URL
-    _url="${GITEA_BASE}/${REPO}/releases/download/v${_version}/aip-v${_version}-${_target}"
+    _url="${GITHUB_BASE}/${REPO}/releases/download/v${_version}/aip-v${_version}-${_target}"
     _tmp_file="${_tmp_dir}/aip"
 
     say "downloading from ${_url}"
