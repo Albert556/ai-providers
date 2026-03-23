@@ -100,6 +100,13 @@ cargo doc --open     # Generate and open documentation
 - If the user explicitly approves leaving a build diagnostic unresolved, record it in `docs/build-exceptions.md` and treat it as a known exception in future work.
 - When a diagnostic is already listed in `docs/build-exceptions.md`, do not re-ask about it on every task unless the diagnostic changed materially or the existing exception is no longer accurate.
 
+## Dependency Locking Policy
+
+- This repository is a CLI application, so `Cargo.lock` must be tracked in git.
+- Do not add `Cargo.lock` back to `.gitignore`.
+- When build or release workflows resolve dependencies, prefer locked mode such as `cargo fetch --locked`, `cargo build --locked`, and `cargo test --locked`.
+- If a dependency update is intentional, regenerate the lock file with Cargo and commit the resulting `Cargo.lock` change together with the manifest or workflow change that requires it.
+
 ## File Index
 
 > Rule: add/remove/rename files => update this index.

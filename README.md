@@ -48,6 +48,8 @@ cargo build --release
 cp target/release/aip ~/.local/bin/
 ```
 
+This project checks in `Cargo.lock` so CLI builds and releases use a reproducible dependency set.
+
 ## Usage
 
 ### Interactive TUI
@@ -258,6 +260,12 @@ aip claude use production
 ## Security
 
 - Profile files are created with `0600` permissions (owner read/write only) on Unix
+
+## Dependency Locking
+
+- `Cargo.lock` is committed for this CLI project and should stay in version control.
+- CI and release builds should use locked dependency resolution, for example `cargo fetch --locked`, `cargo build --locked`, and `cargo test --locked`.
+- When intentionally refreshing dependency versions, update the lock file with `cargo update` and include the resulting `Cargo.lock` changes in the same commit.
 - Profile names are validated to prevent path traversal attacks
 - Atomic file operations using temporary files + rename
 
