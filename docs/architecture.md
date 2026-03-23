@@ -42,6 +42,8 @@
 
 当前版本（v1.1.0）实现了 Claude Code 支持。架构通过 `Provider` trait 抽象，预留了多 provider 扩展能力。
 
+仓库还包含一个 Homebrew tap formula 模板，用于在独立 tap 仓库中分发 `aip`，并复用 CLI 自带的 completion 生成功能。
+
 ## 技术栈
 
 | 依赖 | 版本 | 用途 |
@@ -60,6 +62,9 @@ Rust edition: 2021
 ## 项目结构
 
 ```
+packaging/
+└── homebrew/
+    └── aip.rb.template      # Homebrew tap formula template with version/SHA placeholders
 src/
 ├── main.rs                  # 入口，CLI 定义，命令分发，无参数时启动 TUI
 ├── util.rs                  # 共享工具函数（resolve_editor）

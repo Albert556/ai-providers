@@ -42,13 +42,30 @@ The installer downloads the prebuilt binary to `~/.local/bin` (Unix) or `%LOCALA
 ### From Source
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/Albert556/ai-providers.git
 cd ai-providers
 cargo build --release
 cp target/release/aip ~/.local/bin/
 ```
 
 This project checks in `Cargo.lock` so CLI builds and releases use a reproducible dependency set.
+
+### Homebrew Distribution
+
+This repository includes a Homebrew formula template for a separate tap repository:
+
+```text
+packaging/homebrew/aip.rb.template
+```
+
+To publish `aip` with Homebrew:
+
+1. Create a tap repository such as `Albert556/homebrew-tap`.
+2. Copy `packaging/homebrew/aip.rb.template` to the tap as `Formula/aip.rb`.
+3. Replace `__VERSION__`, `__SHA256__`, and `YOUR-SPDX-LICENSE`.
+4. Commit the formula, then users can install it with `brew install Albert556/tap/aip`.
+
+The template already wires up `aip completion <shell>` so Bash, Zsh, Fish, and PowerShell completions can be installed by Homebrew too.
 
 ### Shell Completions
 
@@ -330,4 +347,6 @@ cargo run -- <args>  # Run
 
 ## License
 
-[Add your license here]
+This repository does not currently declare a `LICENSE` file.
+
+Choose an SPDX-compatible license before publishing the Homebrew formula, then update both `Cargo.toml` and `packaging/homebrew/aip.rb.template`.

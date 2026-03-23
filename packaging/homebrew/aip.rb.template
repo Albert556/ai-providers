@@ -1,0 +1,25 @@
+# Copy this file into your tap repository as Formula/aip.rb
+# and replace __VERSION__, __SHA256__, and YOUR-SPDX-LICENSE.
+
+class Aip < Formula
+  desc "Manage AI tool configuration profiles"
+  homepage "https://github.com/Albert556/ai-providers"
+  url "https://github.com/Albert556/ai-providers/archive/refs/tags/v__VERSION__.tar.gz"
+  sha256 "__SHA256__"
+  license "YOUR-SPDX-LICENSE"
+
+  depends_on "rust" => :build
+
+  def install
+    system "cargo", "install", *std_cargo_args(path: ".")
+    generate_completions_from_executable(
+      bin/"aip", "completion",
+      shells: [:bash, :zsh, :fish, :pwsh]
+    )
+  end
+
+  test do
+    assert_match version.to_s, shell_output("#{bin}/aip --version")
+    assert_match "_aip", shell_output("#{bin}/aip completion zsh")
+  end
+end
