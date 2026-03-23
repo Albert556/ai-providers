@@ -137,10 +137,6 @@ cargo doc --open     # Generate and open documentation
 - `.gitea/scripts/compare_versions.py` :: semver comparison; used by release workflow
 - `.gitea/scripts/latest_semver_tag.py` :: release helper; fetch latest semver tag from Git refs API
 
-### packaging
-
-- `packaging/homebrew/ai-providers.rb.template` :: Homebrew tap formula template; replace version/SHA placeholders and copy to tap repo as `Formula/ai-providers.rb`
-
 ### docs
 
 - `docs/architecture.md` :: arch-doc(zh); layers+Provider+ProfileManager+storage+security+ext

@@ -50,23 +50,6 @@ cp target/release/aip ~/.local/bin/
 
 This project checks in `Cargo.lock` so CLI builds and releases use a reproducible dependency set.
 
-### Homebrew Distribution
-
-This repository includes a Homebrew formula template for a separate tap repository:
-
-```text
-packaging/homebrew/aip.rb.template
-```
-
-To publish `aip` with Homebrew:
-
-1. Create a tap repository such as `Albert556/homebrew-tap`.
-2. Copy `packaging/homebrew/aip.rb.template` to the tap as `Formula/aip.rb`.
-3. Replace `__VERSION__` and `__SHA256__`.
-4. Commit the formula, then users can install it with `brew install Albert556/tap/aip`.
-
-The template already declares the repository's dual license and wires up `aip completion <shell>` so Bash, Zsh, Fish, and PowerShell completions can be installed by Homebrew too.
-
 ### Shell Completions
 
 `aip` can generate completion scripts for `bash`, `zsh`, `fish`, `elvish`, and `powershell`.
