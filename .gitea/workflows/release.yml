@@ -18,48 +18,7 @@ jobs:
 
       - name: Check version change
         id: check
-        run: |
-          BEFORE="${{ github.event.before }}"
-          # Extract current version
-          NEW_VERSION=$(grep '^version' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
-          echo "Current version: $NEW_VERSION"
-
-          # Handle initial push (all-zeros SHA)
-          if echo "$BEFORE" | grep -qE '^0+$'; then
-            echo "Initial push detected, triggering release"
-            echo "release_needed=true" >> "$GITHUB_OUTPUT"
-            echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          # Validate before commit is reachable
-          if ! git rev-parse --verify "${BEFORE}^{commit}" >/dev/null 2>&1; then
-            echo "::error::Before commit $BEFORE is not reachable within fetch-depth=20"
-            exit 1
-          fi
-
-          # Extract old version
-          OLD_VERSION=$(git show "${BEFORE}":Cargo.toml | grep '^version' | sed 's/.*"\(.*\)".*/\1/')
-          echo "Previous version: $OLD_VERSION"
-
-          # Compare versions using full semver 2.0 rules
-          RESULT=$(python3 .gitea/scripts/compare_versions.py "$OLD_VERSION" "$NEW_VERSION")
-
-          if [ "$RESULT" = "true" ]; then
-            echo "Version upgraded: $OLD_VERSION -> $NEW_VERSION"
-            echo "release_needed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "Version not upgraded (old=$OLD_VERSION, new=$NEW_VERSION)"
-            echo "release_needed=false" >> "$GITHUB_OUTPUT"
-          fi
-          echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
-
-          # Detect pre-release or build metadata (semver: contains - or +)
-          if echo "$NEW_VERSION" | grep -qE '[-+]'; then
-            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
-          fi
+        run: bash scripts/ci/check_release_needed.sh "${{ github.event.before }}" "${{ github.event.after }}"
 
   build:
     needs: check-version
@@ -117,25 +76,24 @@ jobs:
       - name: Build
         run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Rename binary
+      - name: Package binary
+        id: package
         run: |
           VERSION="${{ needs.check-version.outputs.version }}"
           TARGET="${{ matrix.target }}"
           SRC="target/${TARGET}/release/aip"
           if [ "$TARGET" = "x86_64-pc-windows-gnu" ]; then
             SRC="${SRC}.exe"
-            DEST="aip-v${VERSION}-${TARGET}.exe"
-          else
-            DEST="aip-v${VERSION}-${TARGET}"
           fi
-          cp "$SRC" "$DEST"
-          echo "Built: $DEST"
+          ARTIFACT_PATH="$(bash scripts/ci/package_binary.sh "$SRC" "$VERSION" "$TARGET")"
+          echo "path=$ARTIFACT_PATH" >> "$GITHUB_OUTPUT"
+          echo "Built: $ARTIFACT_PATH"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
           name: aip-${{ matrix.target }}
-          path: aip-v*
+          path: ${{ steps.package.outputs.path }}
 
   release:
     needs: [check-version, build]

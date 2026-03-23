@@ -24,7 +24,7 @@ Options:
 
 ```bash
 # Install specific version
-VERSION=0.1.0 curl -fsSL .../install.sh | sh
+VERSION=1.1.0 curl -fsSL .../install.sh | sh
 
 # Custom install directory
 INSTALL_DIR=/opt/bin curl -fsSL .../install.sh | sh
@@ -33,7 +33,7 @@ INSTALL_DIR=/opt/bin curl -fsSL .../install.sh | sh
 UNINSTALL=1 curl -fsSL .../install.sh | sh
 
 # Or run directly
-./install.sh --version 0.1.0
+./install.sh --version 1.1.0
 ./install.sh --uninstall
 ```
 

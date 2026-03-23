@@ -1,9 +1,9 @@
 # install.ps1 — Install aip (AI Providers) from Gitea Releases
 # Usage:
 #   irm https://gitea.lan.wiqun.com/Albert/ai-providers/raw/branch/main/install.ps1 | iex
-#   $env:VERSION="0.1.0"; irm ... | iex
+#   $env:VERSION="1.1.0"; irm ... | iex
 #   $env:UNINSTALL="1"; irm ... | iex
-#   .\install.ps1 -Version 0.1.0
+#   .\install.ps1 -Version 1.1.0
 #   .\install.ps1 -Uninstall
 
 param(

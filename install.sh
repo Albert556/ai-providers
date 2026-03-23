@@ -2,7 +2,7 @@
 # install.sh — Install aip (AI Providers) from Gitea Releases
 # Usage:
 #   curl -fsSL https://gitea.lan.wiqun.com/Albert/ai-providers/raw/branch/main/install.sh | sh
-#   VERSION=0.1.0 curl -fsSL ... | sh
+#   VERSION=1.1.0 curl -fsSL ... | sh
 #   INSTALL_DIR=/opt/bin curl -fsSL ... | sh
 #   UNINSTALL=1 curl -fsSL ... | sh
 

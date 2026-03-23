@@ -40,7 +40,7 @@
 
 `aip`（AI Providers）是一个 Rust CLI 工具，用于管理 AI 编程工具的配置 profile。用户可以为不同开发场景（工作、个人、测试等）创建独立的配置文件，通过一条命令快速切换。
 
-当前版本（v0.1.0）实现了 Claude Code 支持。架构通过 `Provider` trait 抽象，预留了多 provider 扩展能力。
+当前版本（v1.1.0）实现了 Claude Code 支持。架构通过 `Provider` trait 抽象，预留了多 provider 扩展能力。
 
 ## 技术栈
 

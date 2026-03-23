@@ -125,6 +125,12 @@ cargo doc --open     # Generate and open documentation
 - `docs/architecture.md` :: arch-doc(zh); layers+Provider+ProfileManager+storage+security+ext
 - `docs/build-exceptions.md` :: approved unresolved build diagnostics registry; agents consult this before re-asking
 
+### scripts/ci
+
+- `scripts/ci/read_cargo_version.sh` :: release helper; read package version from Cargo.toml `[package]`
+- `scripts/ci/check_release_needed.sh` :: release helper; compare push bounds and emit workflow outputs
+- `scripts/ci/package_binary.sh` :: release helper; rename built binary to release artifact format
+
 ### src
 
 - `src/main.rs` :: cli-entry; clap types+dispatch+top-level error handling; no-args → TUI
