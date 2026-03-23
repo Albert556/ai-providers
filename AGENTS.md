@@ -89,6 +89,17 @@ cargo clean          # Remove build artifacts
 cargo doc --open     # Generate and open documentation
 ```
 
+## Build Cleanliness Policy
+
+- Any task that changes Rust source, build scripts, workflow build logic, or compiler-facing configuration must end with a relevant build verification.
+- Default expectation: build output must be clean. Do not leave compile errors or warnings behind.
+- Informational diagnostics should also be removed whenever practical. Treat them as something to clean up, not background noise.
+- When fixing compile errors, warnings, or infos, always prefer resolving the root cause.
+- Do not silence diagnostics with `#[allow(...)]`, broad lint suppression, weakened build commands, or similar "ignore it" approaches unless the user explicitly instructs otherwise.
+- If the root cause cannot be fixed safely, or fixing it would introduce other meaningful tradeoffs or risks, report the situation to the user first before proceeding.
+- If the user explicitly approves leaving a build diagnostic unresolved, record it in `docs/build-exceptions.md` and treat it as a known exception in future work.
+- When a diagnostic is already listed in `docs/build-exceptions.md`, do not re-ask about it on every task unless the diagnostic changed materially or the existing exception is no longer accurate.
+
 ## File Index
 
 > Rule: add/remove/rename files => update this index.
@@ -112,6 +123,7 @@ cargo doc --open     # Generate and open documentation
 ### docs
 
 - `docs/architecture.md` :: arch-doc(zh); layers+Provider+ProfileManager+storage+security+ext
+- `docs/build-exceptions.md` :: approved unresolved build diagnostics registry; agents consult this before re-asking
 
 ### src
 
@@ -172,3 +184,4 @@ Any code changes must be reflected in the relevant documentation:
 - New commands or CLI changes → update README.md and docs/architecture.md
 - Architecture or module changes → update docs/architecture.md
 - New providers → update all three docs and File Index
+- User-approved unresolved build diagnostics → update `docs/build-exceptions.md`

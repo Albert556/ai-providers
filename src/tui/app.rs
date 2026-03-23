@@ -79,7 +79,10 @@ impl<'a> App<'a> {
             current_profile,
             has_common,
             selected: 0,
-            status_message: None,
+            status_message: Some((
+                StatusKind::Info,
+                "Ready. Press 'a' to add a profile or Enter to inspect one.".to_string(),
+            )),
             should_quit: false,
         })
     }

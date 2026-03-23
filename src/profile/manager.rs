@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use serde_json::Value;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::profile::storage;
 use crate::provider::Provider;
@@ -48,7 +48,7 @@ impl<'a> ProfileManager<'a> {
         if !path.exists() {
             return Ok(None);
         }
-        storage::read_json(&path).map(Some)
+        self.read_and_validate_json(&path).map(Some)
     }
 
     pub fn has_common_config(&self) -> bool {
@@ -90,7 +90,7 @@ impl<'a> ProfileManager<'a> {
         if !path.exists() {
             return Err(anyhow!("Profile '{}' not found", name));
         }
-        storage::read_json(&path)
+        self.read_and_validate_json(&path)
     }
 
     pub fn get_active_config(&self) -> Result<serde_json::Value> {
@@ -101,7 +101,7 @@ impl<'a> ProfileManager<'a> {
                 config_path.display()
             ));
         }
-        storage::read_json(&config_path)
+        self.read_and_validate_json(&config_path)
     }
 
     pub fn add_profile(&self, name: &str, source: ProfileSource) -> Result<()> {
@@ -120,6 +120,7 @@ impl<'a> ProfileManager<'a> {
         };
 
         let path = self.profile_path(name);
+        self.validate_provider_config(&content, &path)?;
         storage::write_json(&path, &content)?;
 
         Ok(())
@@ -160,6 +161,7 @@ impl<'a> ProfileManager<'a> {
         };
 
         let config_path = self.provider.config_path();
+        self.validate_provider_config(&final_content, &config_path)?;
         storage::write_json(&config_path, &final_content)?;
 
         storage::update_current_profile(&self.state_file, self.provider.name(), Some(name))?;
@@ -197,5 +199,21 @@ impl<'a> ProfileManager<'a> {
 
     pub fn provider_name(&self) -> &str {
         self.provider.name()
+    }
+
+    fn read_and_validate_json(&self, path: &Path) -> Result<Value> {
+        let content = storage::read_json(path)?;
+        self.validate_provider_config(&content, path)?;
+        Ok(content)
+    }
+
+    fn validate_provider_config(&self, content: &Value, path: &Path) -> Result<()> {
+        self.provider.validate_config(content).with_context(|| {
+            format!(
+                "Invalid {} configuration in {}",
+                self.provider.name(),
+                path.display()
+            )
+        })
     }
 }
