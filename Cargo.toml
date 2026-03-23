@@ -5,6 +5,7 @@ edition = "2021"
 description = "Manage AI tool configuration profiles from the command line"
 homepage = "https://github.com/Albert556/ai-providers"
 repository = "https://github.com/Albert556/ai-providers"
+license = "MIT OR Apache-2.0"
 
 [[bin]]
 name = "aip"

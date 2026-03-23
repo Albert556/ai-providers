@@ -116,8 +116,10 @@ cargo doc --open     # Generate and open documentation
 
 ### root
 
-- `Cargo.toml` :: manifest; bin=`aip`; deps=`clap,clap_complete,serde,serde_json,anyhow,colored,ratatui,crossterm`
+- `Cargo.toml` :: manifest; package metadata+license; bin=`aip`; deps=`clap,clap_complete,serde,serde_json,anyhow,colored,ratatui,crossterm`
 - `Cargo.lock` :: lockfile
+- `LICENSE-APACHE` :: Apache-2.0 license text
+- `LICENSE-MIT` :: MIT license text
 - `README.md` :: user-docs; install+usage+config
 - `CLAUDE.md` :: dev-guide; alias-context
 - `AGENTS.md` :: dev-guide; source-of-truth
@@ -137,7 +139,7 @@ cargo doc --open     # Generate and open documentation
 
 ### packaging
 
-- `packaging/homebrew/aip.rb.template` :: Homebrew tap formula template; replace version/SHA/license placeholders and copy to tap repo as `Formula/aip.rb`
+- `packaging/homebrew/ai-providers.rb.template` :: Homebrew tap formula template; replace version/SHA placeholders and copy to tap repo as `Formula/ai-providers.rb`
 
 ### docs
 

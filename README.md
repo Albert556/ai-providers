@@ -62,10 +62,10 @@ To publish `aip` with Homebrew:
 
 1. Create a tap repository such as `Albert556/homebrew-tap`.
 2. Copy `packaging/homebrew/aip.rb.template` to the tap as `Formula/aip.rb`.
-3. Replace `__VERSION__`, `__SHA256__`, and `YOUR-SPDX-LICENSE`.
+3. Replace `__VERSION__` and `__SHA256__`.
 4. Commit the formula, then users can install it with `brew install Albert556/tap/aip`.
 
-The template already wires up `aip completion <shell>` so Bash, Zsh, Fish, and PowerShell completions can be installed by Homebrew too.
+The template already declares the repository's dual license and wires up `aip completion <shell>` so Bash, Zsh, Fish, and PowerShell completions can be installed by Homebrew too.
 
 ### Shell Completions
 
@@ -347,6 +347,7 @@ cargo run -- <args>  # Run
 
 ## License
 
-This repository does not currently declare a `LICENSE` file.
+Dual-licensed under either of:
 
-Choose an SPDX-compatible license before publishing the Homebrew formula, then update both `Cargo.toml` and `packaging/homebrew/aip.rb.template`.
+- [MIT License](LICENSE-MIT)
+- [Apache License 2.0](LICENSE-APACHE)
