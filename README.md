@@ -50,6 +50,48 @@ cp target/release/aip ~/.local/bin/
 
 ## Usage
 
+### Interactive TUI
+
+Launch the interactive terminal UI by running `aip` with no arguments:
+
+```bash
+aip
+# or explicitly:
+aip tui
+```
+
+The TUI provides a full-screen interface to browse, switch, and manage profiles:
+
+```
+┌─ aip · Claude Code ───────────────────────────┐
+│                                                │
+│  ▸ work            [current]                   │
+│    personal                                    │
+│    test                                        │
+│    common          [base]                      │
+│                                                │
+├────────────────────────────────────────────────┤
+│ Profile switched to 'work'                     │
+│ q:Quit j/k:Navigate Enter:View u:Use a:Add... │
+└────────────────────────────────────────────────┘
+```
+
+**Keybindings:**
+
+| Key | Action |
+|-----|--------|
+| `q` / `Esc` | Quit |
+| `j`/`↓`, `k`/`↑` | Navigate / Scroll |
+| `Enter` | View profile detail |
+| `u` | Use (switch to) selected profile |
+| `a` | Add a new profile |
+| `d` | Delete selected profile |
+| `e` | Edit in $EDITOR (suspends TUI) |
+| `c` | View active settings.json |
+| `m` | Toggle merged view (in detail view) |
+
+### CLI Commands
+
 Commands are organized by provider: `aip <provider> <command>`.
 
 ### Claude Code

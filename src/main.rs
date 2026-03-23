@@ -5,6 +5,8 @@ use colored::*;
 mod commands;
 mod profile;
 mod provider;
+mod tui;
+mod util;
 
 use profile::manager::ProfileManager;
 use provider::claude::ClaudeProvider;
@@ -15,7 +17,7 @@ use provider::claude::ClaudeProvider;
 #[command(version)]
 struct Cli {
     #[command(subcommand)]
-    command: ProviderCommand,
+    command: Option<ProviderCommand>,
 }
 
 #[derive(Subcommand)]
@@ -25,6 +27,8 @@ enum ProviderCommand {
         #[command(subcommand)]
         command: ProfileCommands,
     },
+    /// Launch interactive TUI
+    Tui,
 }
 
 #[derive(Subcommand)]
@@ -86,7 +90,12 @@ fn run() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        ProviderCommand::Claude { command } => {
+        None | Some(ProviderCommand::Tui) => {
+            let provider = ClaudeProvider;
+            let manager = ProfileManager::new(&provider)?;
+            tui::run_tui(&manager)?;
+        }
+        Some(ProviderCommand::Claude { command }) => {
             let provider = ClaudeProvider;
             let manager = ProfileManager::new(&provider)?;
             handle_profile_command(&manager, command)?;

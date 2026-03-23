@@ -51,6 +51,8 @@
 | `serde_json` | 1.0 | JSON 读写 |
 | `anyhow` | 1.0 | 应用层错误处理，`.context()` 错误上下文 |
 | `colored` | 2.1 | 终端彩色输出 |
+| `ratatui` | 0.29 | 终端 TUI 框架，渲染 UI 组件 |
+| `crossterm` | 0.28 | 跨平台终端操作（raw mode、事件轮询、备用屏幕） |
 
 Rust edition: 2021
 
@@ -58,7 +60,8 @@ Rust edition: 2021
 
 ```
 src/
-├── main.rs                  # 入口，CLI 定义，命令分发
+├── main.rs                  # 入口，CLI 定义，命令分发，无参数时启动 TUI
+├── util.rs                  # 共享工具函数（resolve_editor）
 ├── provider/                # Provider 抽象层
 │   ├── mod.rs               # Provider trait 定义
 │   └── claude.rs            # ClaudeProvider 实现
@@ -66,6 +69,12 @@ src/
 │   ├── mod.rs               # 模块导出
 │   ├── manager.rs           # ProfileManager（泛型，接收 &dyn Provider）
 │   └── storage.rs           # 文件 I/O（原子写入、状态管理）
+├── tui/                     # 交互式 TUI 界面
+│   ├── mod.rs               # TUI 入口；终端设置/恢复；主事件循环；编辑器挂起
+│   ├── app.rs               # App 状态机；Mode 枚举；状态转换逻辑
+│   ├── ui.rs                # 渲染逻辑（profile 列表、详情、对话框、状态栏）
+│   ├── event.rs             # crossterm 事件轮询封装
+│   └── handler.rs           # 按键分发（按 Mode）；返回 Action 枚举
 └── commands/                # 子命令实现
     ├── mod.rs               # 模块导出
     ├── list.rs              # list / ls
@@ -74,7 +83,7 @@ src/
     ├── config.rs            # config
     ├── add.rs               # add
     ├── delete.rs            # delete
-    ├── edit.rs              # edit
+    ├── edit.rs              # edit（使用 util::resolve_editor）
     └── use_cmd.rs           # use
 ```
 
@@ -84,10 +93,11 @@ src/
 
 ```
 ┌─────────────────────────────────────┐
-│           main.rs (CLI)             │  clap 解析 → 命令分发
-├─────────────────────────────────────┤
-│         commands/*                  │  各子命令的交互逻辑（输出、确认）
-├─────────────────────────────────────┤
+│           main.rs (入口)            │  clap 解析 → 有参数走 CLI，无参数走 TUI
+├──────────────────┬──────────────────┤
+│   tui/*          │   commands/*     │  TUI 交互界面 │ CLI 子命令
+│ (ratatui+crossterm)                 │
+├──────────────────┴──────────────────┤
 │       ProfileManager                │  业务逻辑（校验、协调）
 ├─────────────────────────────────────┤
 │     Provider trait                  │  provider 抽象（name、config_path）
@@ -96,7 +106,42 @@ src/
 └─────────────────────────────────────┘
 ```
 
-数据流方向：自上而下。CLI 层解析参数，调用 commands 层；commands 层调用 `ProfileManager`；`ProfileManager` 通过 `Provider` 获取配置路径，通过 `storage` 执行文件操作。
+数据流方向：自上而下。入口层解析参数：无参数或 `tui` 子命令时启动 TUI 交互界面，有 provider 子命令时走 CLI 路径。两条路径共享同一个 `ProfileManager` 和 `storage` 层。
+
+### TUI 层
+
+**文件**: `src/tui/`
+
+TUI 提供全屏交互式界面，用户无需记忆命令即可浏览和管理 profile。
+
+**架构模式**：状态机 + 事件循环
+
+```
+tui/mod.rs (事件循环)
+  ├─ tui/app.rs    (状态机: App struct + Mode enum)
+  ├─ tui/ui.rs     (渲染: Frame → Widget)
+  ├─ tui/event.rs  (输入: crossterm 事件轮询)
+  └─ tui/handler.rs (按键 → Action 枚举)
+         │
+         ▼
+    ProfileManager (复用现有业务逻辑)
+```
+
+**Mode 枚举**（界面状态）：
+- `ProfileList` — 主列表视图
+- `ProfileDetail` — 查看单个 profile JSON（支持 merged 切换和滚动）
+- `ActiveConfig` — 查看当前 settings.json
+- `AddProfile` — 添加 profile 对话框（名称输入 → 来源选择）
+- `ConfirmDelete` — 删除确认对话框
+
+**Action 枚举**（副作用隔离）：
+- `None` — 无操作
+- `Quit` — 退出
+- `SuspendForEditor(String)` — 挂起 TUI 启动编辑器
+
+**编辑器挂起流程**：离开备用屏幕 → 关闭 raw mode → 启动 $EDITOR → 等待退出 → 重新进入 raw mode → 进入备用屏幕 → 校验 JSON → 刷新列表
+
+**终端安全**：安装 panic hook，确保 panic 时恢复终端状态（raw mode + 备用屏幕）。
 
 ### Provider 抽象层
 
@@ -281,6 +326,9 @@ aip claude <command>
 
 ```
 Cli::parse()
+  → command == None | Tui
+    → 创建 ClaudeProvider + ProfileManager
+    → tui::run_tui(&manager)  // 启动 TUI
   → ProviderCommand::Claude { command }
     → 创建 ClaudeProvider
     → 创建 ProfileManager::new(&provider)

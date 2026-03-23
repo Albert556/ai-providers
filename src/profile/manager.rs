@@ -27,8 +27,9 @@ impl<'a> ProfileManager<'a> {
         let state_file = base_dir.join("state.json");
 
         if !profiles_dir.exists() {
-            std::fs::create_dir_all(&profiles_dir)
-                .with_context(|| format!("Failed to create directory: {}", profiles_dir.display()))?;
+            std::fs::create_dir_all(&profiles_dir).with_context(|| {
+                format!("Failed to create directory: {}", profiles_dir.display())
+            })?;
         }
 
         Ok(Self {
@@ -61,8 +62,8 @@ impl<'a> ProfileManager<'a> {
             return Ok(profiles);
         }
 
-        let entries = std::fs::read_dir(&self.profiles_dir)
-            .context("Failed to read profiles directory")?;
+        let entries =
+            std::fs::read_dir(&self.profiles_dir).context("Failed to read profiles directory")?;
 
         for entry in entries {
             let entry = entry?;

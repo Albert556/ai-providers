@@ -95,7 +95,7 @@ cargo doc --open     # Generate and open documentation
 
 ### root
 
-- `Cargo.toml` :: manifest; bin=`aip`; deps=`clap,serde,serde_json,anyhow,colored`
+- `Cargo.toml` :: manifest; bin=`aip`; deps=`clap,serde,serde_json,anyhow,colored,ratatui,crossterm`
 - `Cargo.lock` :: lockfile
 - `README.md` :: user-docs; install+usage+config
 - `CLAUDE.md` :: dev-guide; alias-context
@@ -115,7 +115,16 @@ cargo doc --open     # Generate and open documentation
 
 ### src
 
-- `src/main.rs` :: cli-entry; clap types+dispatch+top-level error handling
+- `src/main.rs` :: cli-entry; clap types+dispatch+top-level error handling; no-args → TUI
+- `src/util.rs` :: shared utilities; `resolve_editor()` for editor detection
+
+### src/tui
+
+- `src/tui/mod.rs` :: TUI entry point; `run_tui()`; terminal setup/restore; main event loop; editor suspension
+- `src/tui/app.rs` :: App state struct; Mode enum (ProfileList/ProfileDetail/ActiveConfig/AddProfile/ConfirmDelete); state transitions
+- `src/tui/ui.rs` :: all rendering logic; profile list, detail view, dialogs, status bar
+- `src/tui/event.rs` :: crossterm event polling wrapper
+- `src/tui/handler.rs` :: keybinding dispatch per mode; returns Action enum (None/Quit/SuspendForEditor)
 
 ### src/provider
 

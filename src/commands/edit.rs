@@ -4,6 +4,7 @@ use std::io::{self, Write};
 use std::process::Command;
 
 use crate::profile::manager::ProfileManager;
+use crate::util;
 
 pub fn execute(manager: &ProfileManager, profile: &str) -> Result<()> {
     if !manager.profile_exists(profile) {
@@ -11,17 +12,7 @@ pub fn execute(manager: &ProfileManager, profile: &str) -> Result<()> {
         return Ok(());
     }
 
-    let editor = std::env::var("EDITOR")
-        .or_else(|_| std::env::var("VISUAL"))
-        .unwrap_or_else(|_| {
-            if Command::new("vim").arg("--version").output().is_ok() {
-                "vim".to_string()
-            } else if Command::new("vi").arg("--version").output().is_ok() {
-                "vi".to_string()
-            } else {
-                "nano".to_string()
-            }
-        });
+    let editor = util::resolve_editor();
 
     let profile_path = manager.profile_path(profile);
 

@@ -21,8 +21,7 @@ pub fn write_json(path: &Path, value: &Value) -> Result<()> {
         }
     }
 
-    let content = serde_json::to_string_pretty(value)
-        .context("Failed to serialize JSON")?;
+    let content = serde_json::to_string_pretty(value).context("Failed to serialize JSON")?;
 
     let temp_path = path.with_extension("tmp");
     fs::write(&temp_path, &content)
@@ -64,8 +63,7 @@ pub fn deep_merge(base: &Value, override_val: &Value) -> Value {
 }
 
 pub fn remove_file(path: &Path) -> Result<()> {
-    fs::remove_file(path)
-        .with_context(|| format!("Failed to remove file: {}", path.display()))
+    fs::remove_file(path).with_context(|| format!("Failed to remove file: {}", path.display()))
 }
 
 /// Read the current profile for a specific provider from state.json
