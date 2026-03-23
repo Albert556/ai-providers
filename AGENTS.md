@@ -129,7 +129,7 @@ cargo doc --open     # Generate and open documentation
 
 ### .github
 
-- `.github/workflows/release.yml` :: GitHub release automation; version-detect+matrix-build+github-release
+- `.github/workflows/release.yml` :: GitHub release automation; version-detect+matrix-build+github-release+homebrew-tap-update
 
 ### .gitea
 

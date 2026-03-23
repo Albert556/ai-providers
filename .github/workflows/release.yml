@@ -157,6 +157,8 @@ jobs:
   release:
     needs: [check-version, build]
     runs-on: ubuntu-slim
+    outputs:
+      released: ${{ steps.tag-check.outputs.tag_exists != 'true' }}
     steps:
       - uses: actions/checkout@v5
 
@@ -192,3 +194,86 @@ jobs:
           body: Release v${{ needs.check-version.outputs.version }}
           prerelease: ${{ needs.check-version.outputs.is_prerelease == 'true' }}
           files: release-files/**
+
+  update-homebrew:
+    needs: [check-version, build, release]
+    if: >-
+      needs.release.outputs.released == 'true' &&
+      needs.check-version.outputs.is_prerelease != 'true'
+    runs-on: ubuntu-slim
+    steps:
+      - name: Download macOS ARM64 artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: aip-aarch64-apple-darwin
+          path: artifacts/macos
+
+      - name: Download Linux AMD64 artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: aip-x86_64-unknown-linux-gnu
+          path: artifacts/linux
+
+      - name: Generate Homebrew formula
+        env:
+          VERSION: ${{ needs.check-version.outputs.version }}
+        run: |
+          MACOS_SHA=$(sha256sum artifacts/macos/aip-v${VERSION}-aarch64-apple-darwin | cut -d' ' -f1)
+          LINUX_SHA=$(sha256sum artifacts/linux/aip-v${VERSION}-x86_64-unknown-linux-gnu | cut -d' ' -f1)
+
+          cat > ai-providers.rb <<FORMULA
+          class AiProviders < Formula
+            desc "Manage AI tool configuration profiles from the command line"
+            homepage "https://github.com/Albert556/ai-providers"
+            version "${VERSION}"
+            license any_of: ["MIT", "Apache-2.0"]
+
+            on_macos do
+              on_arm do
+                url "https://github.com/Albert556/ai-providers/releases/download/v${VERSION}/aip-v${VERSION}-aarch64-apple-darwin"
+                sha256 "${MACOS_SHA}"
+              end
+            end
+
+            on_linux do
+              on_intel do
+                url "https://github.com/Albert556/ai-providers/releases/download/v${VERSION}/aip-v${VERSION}-x86_64-unknown-linux-gnu"
+                sha256 "${LINUX_SHA}"
+              end
+            end
+
+            def install
+              if OS.mac?
+                bin.install "aip-v#{version}-aarch64-apple-darwin" => "aip"
+              elsif OS.linux?
+                bin.install "aip-v#{version}-x86_64-unknown-linux-gnu" => "aip"
+              end
+
+              generate_completions_from_executable(bin/"aip", "completion")
+            end
+
+            test do
+              assert_match version.to_s, shell_output("#{bin}/aip --version")
+            end
+          end
+          FORMULA
+
+          echo "Generated formula:"
+          cat ai-providers.rb
+
+      - name: Update Homebrew tap
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ needs.check-version.outputs.version }}
+        run: |
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/Albert556/homebrew-tap.git" homebrew-tap
+          cd homebrew-tap
+          mkdir -p Formula
+          cp ../ai-providers.rb Formula/ai-providers.rb
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/ai-providers.rb
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
+          git commit -m "ai-providers ${VERSION}"
+          git push

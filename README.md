@@ -39,6 +39,13 @@ UNINSTALL=1 curl -fsSL .../install.sh | sh
 
 The installer downloads the prebuilt binary to `~/.local/bin` (Unix) or `%LOCALAPPDATA%\aip` (Windows) and automatically configures your PATH.
 
+### Homebrew (macOS / Linux)
+
+```bash
+brew tap Albert556/tap
+brew install ai-providers
+```
+
 ### From Source
 
 ```bash

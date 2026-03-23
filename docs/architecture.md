@@ -732,6 +732,23 @@ ProviderCommand::Codex { command } => {
 
 存储目录也会自动创建为 `~/.ai-providers/codex/`，state.json 中会独立追踪 `codex` 的当前 profile。
 
+## 分发：Homebrew
+
+release workflow 成功发布新版本后，`update-homebrew` job 自动更新 Homebrew tap（`Albert556/homebrew-tap`）：
+
+1. 下载 macOS ARM64 和 Linux AMD64 构建产物
+2. 计算 sha256 校验和
+3. 用内联模板生成 formula
+4. 推送到 tap 仓库的 `Formula/ai-providers.rb`
+
+预发布版本不会更新 tap。
+
+用户安装：
+```bash
+brew tap Albert556/tap
+brew install ai-providers
+```
+
 ## 设计决策记录
 
 | 决策 | 选择 | 理由 |
