@@ -130,6 +130,7 @@ cargo doc --open     # Generate and open documentation
 
 - `.gitea/workflows/release.yml` :: release automation; version-detect+matrix-build+gitea-release
 - `.gitea/scripts/compare_versions.py` :: semver comparison; used by release workflow
+- `.gitea/scripts/latest_semver_tag.py` :: release helper; fetch latest semver tag from Git refs API
 
 ### docs
 

@@ -17,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 20
+          fetch-depth: 1
 
       - uses: actions/setup-python@v5
         with:
@@ -26,7 +26,6 @@ jobs:
       - name: Check version change
         id: check
         run: |
-          BEFORE="${{ github.event.before }}"
           NEW_VERSION="$(awk '
             BEGIN { in_package = 0 }
             /^\[package\][[:space:]]*$/ { in_package = 1; next }
@@ -41,39 +40,34 @@ jobs:
           ' Cargo.toml)"
           echo "Current version: $NEW_VERSION"
 
-          if echo "$BEFORE" | grep -qE '^0+$'; then
-            echo "Initial push detected, triggering release"
+          LATEST_TAG="$(python3 .gitea/scripts/latest_semver_tag.py \
+            --endpoint "${{ github.api_url }}/repos/${{ github.repository }}/git/matching-refs/tags" \
+            --auth-scheme bearer \
+            --token "${{ github.token }}")"
+
+          if [ -z "$LATEST_TAG" ]; then
+            echo "No release tags found, treating this as the first release"
             echo "release_needed=true" >> "$GITHUB_OUTPUT"
             echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
           else
-            if ! git rev-parse --verify "${BEFORE}^{commit}" >/dev/null 2>&1; then
-              echo "::error::Before commit $BEFORE is not reachable within fetch-depth=20"
-              exit 1
-            fi
+            LATEST_VERSION="${LATEST_TAG#v}"
+            echo "Latest release tag: $LATEST_TAG"
 
-            OLD_VERSION="$(git show "${BEFORE}:Cargo.toml" | awk '
-              BEGIN { in_package = 0 }
-              /^\[package\][[:space:]]*$/ { in_package = 1; next }
-              /^\[/ { in_package = 0 }
-              in_package && /^[[:space:]]*version[[:space:]]*=/ {
-                line = $0
-                sub(/^[^"]*"/, "", line)
-                sub(/".*$/, "", line)
-                print line
-                exit
-              }
-            ')"
-            echo "Previous version: $OLD_VERSION"
-
-            RESULT="$(python3 .gitea/scripts/compare_versions.py "$OLD_VERSION" "$NEW_VERSION")"
-            if [ "$RESULT" = "true" ]; then
-              echo "Version upgraded: $OLD_VERSION -> $NEW_VERSION"
-              echo "release_needed=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "Version not upgraded (old=$OLD_VERSION, new=$NEW_VERSION)"
+            if [ "$LATEST_VERSION" = "$NEW_VERSION" ]; then
+              echo "Version matches the latest release tag; skipping release"
               echo "release_needed=false" >> "$GITHUB_OUTPUT"
+              echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+            else
+              RESULT="$(python3 .gitea/scripts/compare_versions.py "$LATEST_VERSION" "$NEW_VERSION")"
+              if [ "$RESULT" = "true" ]; then
+                echo "Version upgraded: $LATEST_VERSION -> $NEW_VERSION"
+                echo "release_needed=true" >> "$GITHUB_OUTPUT"
+                echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+              else
+                echo "::error::Cargo.toml version $NEW_VERSION is older than the latest release tag $LATEST_TAG"
+                exit 1
+              fi
             fi
-            echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
           fi
 
           if echo "$NEW_VERSION" | grep -qE '[-+]'; then

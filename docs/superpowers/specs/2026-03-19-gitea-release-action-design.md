@@ -2,7 +2,7 @@
 
 ## Overview
 
-Automated release workflow for the `aip` CLI tool. On push to `main`, detects version changes in `Cargo.toml` and builds + publishes releases for 3 targets.
+Automated release workflow for the `aip` CLI tool. On push to `main`, compares the `Cargo.toml` version against the latest release tag and builds + publishes releases for 3 targets when the version is newer.
 
 ## Trigger
 
@@ -31,18 +31,17 @@ check-version → build (matrix, 3 targets) → release
 
 ## Job 1: `check-version` (runner: `ubuntu-24.04`)
 
-**Purpose:** Compare `Cargo.toml` version between `github.event.before` commit and current commit.
-
-**Gitea compatibility note:** Gitea Actions supports `github.event.before` and `github.event.after` on push events, matching GitHub Actions behavior.
+**Purpose:** Compare `Cargo.toml` version against the latest semver release tag in git.
 
 **Steps:**
 
-1. `actions/checkout@v4` with `fetch-depth: 20`
-2. Check if `github.event.before` is all-zeros (`0000000...`) — if so, skip to step 5 with `release_needed=true`
-3. Validate `before` commit is reachable: `git rev-parse --verify ${{ github.event.before }}^{commit}` — if fails, **error and exit**
-4. Extract old version: `git show ${{ github.event.before }}:Cargo.toml | grep '^version' | sed 's/.*"\(.*\)".*/\1/'`
-5. Extract new version: `grep '^version' Cargo.toml | sed 's/.*"\(.*\)".*/\1/'`
-6. Compare: if different → `release_needed=true`, otherwise `false`
+1. `actions/checkout@v4` with a shallow checkout (`fetch-depth: 1`)
+2. Extract the current version from `Cargo.toml`
+3. Query the repository refs API for tag refs and select the latest semver tag (`v*`)
+4. If no release tag exists, treat it as the first release and set `release_needed=true`
+5. If `Cargo.toml` version equals the latest release tag version, set `release_needed=false`
+6. If `Cargo.toml` version is greater than the latest release tag version, set `release_needed=true`
+7. If `Cargo.toml` version is less than the latest release tag version, **error and exit**
 
 **Outputs:**
 - `release_needed`: `'true'` or `'false'`
@@ -105,8 +104,8 @@ check-version → build (matrix, 3 targets) → release
 
 ## Error Handling
 
-- `before` is all-zeros → treat as first release, proceed
-- `before` commit not in 20-depth history → **fail with error** (no fallback)
+- No release tag exists → treat as first release, proceed
+- `Cargo.toml` version is older than the latest tag → **fail with error**
 - Any build target fails → whole release is blocked (matrix job fails)
 - Tag already exists → skip release creation (idempotent)
 
@@ -130,9 +129,9 @@ Parsing: `grep '^version' Cargo.toml | sed 's/.*"\(.*\)".*/\1/'`
 | macOS arch | aarch64 only | User requirement |
 | Linux/Windows arch | x86_64 only | User requirement |
 | Package format | Bare binary | Simple, no archive overhead |
-| Version detection | `github.event.before` vs current Cargo.toml | Push event provides before/after SHAs |
-| Fetch depth | 20 | Covers most push scenarios without full clone |
-| Fallback on deep push | Error and exit | Keep it simple |
+| Version detection | Latest release tag via refs API vs current Cargo.toml | Avoids full-history checkout while staying stable across multi-commit pushes |
+| Fetch depth | 1 | Only the triggering commit is needed locally because tags come from the API |
+| No tag fallback | Release immediately | First release should not require a pre-existing tag |
 | Workflow structure | Single YAML, no external scripts | Cohesive, easy to maintain |
 | Release action | `gitea.lan.wiqun.com/actions/gitea-release-action` | User-specified, self-hosted mirror |
 | Rust installation | `rustup` stable channel | Runners don't have Rust pre-installed |
