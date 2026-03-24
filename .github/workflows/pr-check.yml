@@ -16,8 +16,62 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  version-check:
+    name: version >= latest tag
+    runs-on: ubuntu-slim
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+
+      - name: Check Cargo.toml version against latest tag
+        run: |
+          NEW_VERSION="$(awk '
+            BEGIN { in_package = 0 }
+            /^\[package\][[:space:]]*$/ { in_package = 1; next }
+            /^\[/ { in_package = 0 }
+            in_package && /^[[:space:]]*version[[:space:]]*=/ {
+              line = $0
+              sub(/^[^"]*"/, "", line)
+              sub(/".*$/, "", line)
+              print line
+              exit
+            }
+          ' Cargo.toml)"
+          echo "Current version: $NEW_VERSION"
+
+          LATEST_TAG="$(python3 .gitea/scripts/latest_semver_tag.py \
+            --endpoint "${{ github.api_url }}/repos/${{ github.repository }}/git/matching-refs/tags" \
+            --auth-scheme bearer \
+            --token "${{ github.token }}")"
+
+          if [ -z "$LATEST_TAG" ]; then
+            echo "No semver tags found, skipping version floor check"
+            exit 0
+          fi
+
+          LATEST_VERSION="${LATEST_TAG#v}"
+          echo "Latest semver tag: $LATEST_TAG"
+
+          if [ "$LATEST_VERSION" = "$NEW_VERSION" ]; then
+            echo "Version matches the latest tag"
+            exit 0
+          fi
+
+          RESULT="$(python3 .gitea/scripts/compare_versions.py "$LATEST_VERSION" "$NEW_VERSION")"
+          if [ "$RESULT" = "true" ]; then
+            echo "Version is not older than the latest tag: $NEW_VERSION >= $LATEST_VERSION"
+            exit 0
+          fi
+
+          echo "::error::Cargo.toml version $NEW_VERSION is older than the latest tag $LATEST_TAG"
+          exit 1
+
   rust-checks:
     name: fmt + clippy + test
+    needs: version-check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
