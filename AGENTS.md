@@ -129,6 +129,7 @@ cargo doc --open     # Generate and open documentation
 
 ### .github
 
+- `.github/workflows/pr-check.yml` :: GitHub pull request gate; runs `cargo fmt --all -- --check`, `cargo clippy --all-targets -- -D warnings`, and `cargo test --locked`
 - `.github/workflows/release.yml` :: GitHub release automation; version-detect+matrix-build+github-release+homebrew-tap-update
 
 ### .gitea

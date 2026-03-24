@@ -315,6 +315,7 @@ This repository uses **GitHub Flow**:
 
 - Create a feature branch from `main`
 - Open a pull request for review
+- Pull requests are gated by GitHub Actions running `cargo fmt --all -- --check`, `cargo clippy --all-targets -- -D warnings`, and `cargo test --locked`
 - Merge the pull request back into `main`
 - Avoid direct pushes to `main` during normal development
 
