@@ -249,6 +249,8 @@ jobs:
                 bin.install "aip-v#{version}-x86_64-unknown-linux-gnu" => "aip"
               end
 
+              chmod 0555, bin/"aip"
+
               generate_completions_from_executable(bin/"aip", "completion")
             end
 
